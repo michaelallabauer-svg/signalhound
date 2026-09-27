@@ -1,4 +1,4 @@
-from app.scanners.placeholders import AmassAdapter, NmapAdapter
+from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter
 
 
 def test_nmap_adapter_parses_open_services() -> None:
@@ -61,3 +61,32 @@ def test_amass_adapter_parses_json_lines() -> None:
     assert all(asset["asset_type"] == "SUBDOMAIN" for asset in normalized.assets)
     assert normalized.assets[0]["metadata"]["addresses"] == [{"ip": "203.0.113.10"}]
 
+
+def test_nuclei_adapter_parses_findings() -> None:
+    raw_output = """
+    {"template-id":"exposed-panel","matched-at":"https://www.example.com/panel","host":"https://www.example.com","type":"http","info":{"name":"Exposed panel","severity":"high","description":"Panel exposed","remediation":"Restrict access","metadata":{"cwe":"CWE-200"}}}
+    """
+
+    adapter = NucleiAdapter()
+    parsed = adapter.parse_result(raw_output)
+    normalized = adapter.normalize_result(parsed)
+
+    assert normalized.findings == [
+        {
+            "asset_type": "HOST",
+            "asset_value": "www.example.com",
+            "title": "Exposed panel",
+            "description": "Panel exposed",
+            "severity": "HIGH",
+            "source": "nuclei",
+            "external_reference": "exposed-panel",
+            "remediation": "Restrict access",
+            "evidence": {
+                "matched_at": "https://www.example.com/panel",
+                "type": "http",
+                "matcher_name": None,
+                "template_id": "exposed-panel",
+                "metadata": {"cwe": "CWE-200"},
+            },
+        }
+    ]

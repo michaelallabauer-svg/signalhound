@@ -5,12 +5,14 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.asset import Asset, AssetType
+from app.models.finding import FindingSeverity
 from app.models.scanner_job import ScannerJob, ScannerJobStatus
 from app.models.scope import ScanZone
 from app.models.service import ServiceProtocol
 from app.repositories.assets import observe_asset
+from app.repositories.findings import observe_finding
 from app.repositories.scanner_jobs import set_scanner_job_status
-from app.repositories.services import observe_service
+from app.repositories.services import find_service, observe_service
 from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, ScannerAdapter
 from app.services.audit import record_audit_event
 from app.services.scope_validation import ScopeValidator
@@ -118,6 +120,43 @@ def import_normalized_result(db: Session, *, job: ScannerJob, result: Normalized
             metadata=dict(service_data.get("metadata", {})),
         )
 
+    for finding_data in result.findings:
+        asset = _observe_normalized_asset(
+            db,
+            job=job,
+            asset_data={
+                "asset_type": finding_data.get("asset_type", "HOST"),
+                "value": finding_data.get("asset_value", job.target),
+                "source": finding_data.get("source", job.adapter_name),
+                "metadata": {"created_from_finding_result": True},
+            },
+        )
+        service_id = None
+        protocol = finding_data.get("protocol")
+        port = finding_data.get("port")
+        if protocol is not None and port is not None:
+            service = find_service(
+                db,
+                asset_id=asset.id,
+                protocol=ServiceProtocol(str(protocol)),
+                port=int(port),
+            )
+            service_id = service.id if service is not None else None
+
+        observe_finding(
+            db,
+            organization_id=job.organization_id,
+            asset_id=asset.id,
+            service_id=service_id,
+            title=str(finding_data["title"]),
+            description=finding_data.get("description"),
+            severity=FindingSeverity(str(finding_data["severity"])),
+            source=str(finding_data.get("source", job.adapter_name)),
+            external_reference=finding_data.get("external_reference"),
+            remediation=finding_data.get("remediation"),
+            evidence=dict(finding_data.get("evidence", {})),
+        )
+
 
 def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[str, Any]) -> Asset:
     asset_type = AssetType(str(asset_data["asset_type"]))
@@ -140,4 +179,3 @@ def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[
         metadata=dict(asset_data.get("metadata", {})),
     )
     return asset
-

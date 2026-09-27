@@ -70,6 +70,22 @@ def get_service(db: Session, service_id: int) -> Service | None:
     return db.get(Service, service_id)
 
 
+def find_service(
+    db: Session,
+    *,
+    asset_id: int,
+    protocol: ServiceProtocol,
+    port: int,
+) -> Service | None:
+    statement = (
+        select(Service)
+        .where(Service.asset_id == asset_id)
+        .where(Service.protocol == protocol)
+        .where(Service.port == port)
+    )
+    return db.scalar(statement)
+
+
 def list_service_observations(db: Session, service_id: int) -> list[ServiceObservation]:
     statement = (
         select(ServiceObservation)
@@ -77,4 +93,3 @@ def list_service_observations(db: Session, service_id: int) -> list[ServiceObser
         .order_by(ServiceObservation.observed_at, ServiceObservation.id)
     )
     return list(db.scalars(statement))
-

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.asset import Asset
 from app.models.audit_log import AuditLog
+from app.models.finding import Finding
 from app.models.scanner_job import ScannerJob
 from app.models.service import Service
 from app.scanners.base import NormalizedScannerResult, PreparedScannerJob
@@ -37,7 +38,7 @@ def test_scanner_adapters_are_listed(client: TestClient) -> None:
     assert set(adapters) == {"nmap", "amass", "nuclei"}
     assert adapters["nmap"]["execution_available"] is True
     assert adapters["amass"]["execution_available"] is True
-    assert adapters["nuclei"]["execution_available"] is False
+    assert adapters["nuclei"]["execution_available"] is True
 
 
 def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_session: Session) -> None:
@@ -182,6 +183,18 @@ def test_run_scanner_job_imports_normalized_results(
                         "metadata": {"product": "fake"},
                     }
                 ],
+                findings=[
+                    {
+                        "asset_type": "SUBDOMAIN",
+                        "asset_value": "www.example.com",
+                        "title": "Exposed panel",
+                        "description": "Panel is exposed",
+                        "severity": "HIGH",
+                        "source": "nuclei",
+                        "external_reference": "exposed-panel",
+                        "evidence": {"matched_at": "https://www.example.com/panel"},
+                    }
+                ],
                 metadata={"parsed": parsed_result},
             )
 
@@ -215,6 +228,12 @@ def test_run_scanner_job_imports_normalized_results(
     assert len(services) == 1
     assert services[0].asset_id == in_scope_asset.id
     assert services[0].port == 443
+
+    findings = list(db_session.scalars(select(Finding)))
+    assert len(findings) == 1
+    assert findings[0].asset_id == in_scope_asset.id
+    assert findings[0].severity.value == "HIGH"
+    assert findings[0].status.value == "NEW"
 
     audit_actions = list(db_session.scalars(select(AuditLog.action).order_by(AuditLog.id)))
     assert "scanner.started" in audit_actions

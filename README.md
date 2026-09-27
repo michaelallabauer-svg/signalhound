@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, and **Epic 5: External Discovery**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, and **Epic 6: Finding Normalization and Management**.
 
-No finding workflows, exploitation features, change detection, or frontend are implemented yet.
+No change detection, exploitation features, or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -20,6 +20,7 @@ No finding workflows, exploitation features, change detection, or frontend are i
 - `backend/app/workers/celery_app.py` configures the Celery worker.
 - `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
+- `backend/app/api/findings.py` exposes normalized finding and lifecycle APIs.
 - `backend/app/scanners/` contains the scanner adapter contract and registry.
 - `backend/app/api/scanner_jobs.py` prepares scanner jobs only after scope validation.
 - `backend/alembic/` contains the Alembic migration framework.
@@ -270,7 +271,53 @@ Epic 5 behavior:
 - In-scope discovered assets are linked to the scope and marked known.
 - Out-of-scope discovered assets may be recorded without `scope_id` as discovered/unverified inventory.
 - Services are attached to normalized assets and historized.
-- `nuclei` remains registered but execution is deferred to Epic 6 because it creates findings.
+- `nuclei` normalizes JSONL findings into the finding inventory.
+
+## Finding Management API
+
+Create or refresh a finding observation:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/findings \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"asset_id":1,"title":"Missing security header","severity":"LOW","source":"manual"}'
+```
+
+List findings:
+
+```bash
+curl http://localhost:8010/api/v1/findings?organization_id=1
+```
+
+Change finding status:
+
+```bash
+curl -X PATCH http://localhost:8010/api/v1/findings/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"ACKNOWLEDGED","remediation":"Track with owner"}'
+```
+
+View finding observation history:
+
+```bash
+curl http://localhost:8010/api/v1/findings/1/observations
+```
+
+Finding lifecycle:
+
+- `NEW`
+- `ACKNOWLEDGED`
+- `IN_PROGRESS`
+- `RESOLVED`
+- `ACCEPTED_RISK`
+- `FALSE_POSITIVE`
+
+Finding behavior:
+
+- Re-observing an existing finding updates `last_seen` and creates a `finding_observations` row.
+- `first_seen` and the current lifecycle `status` are preserved during re-observation.
+- Status changes are explicit API actions and are auditable.
+- Nuclei findings are imported through scanner jobs when scanner execution is enabled.
 
 ## Implemented Scope
 
@@ -299,9 +346,11 @@ Implemented:
 - Scope-gated scanner job preparation
 - Scope-gated external discovery execution for Nmap and Amass
 - Discovery result import into asset and service history
+- Finding inventory and lifecycle management
+- Nuclei finding normalization
+- Finding observation history
 
 Deferred to later epics:
 
-- Finding management
 - Change detection
 - Frontend

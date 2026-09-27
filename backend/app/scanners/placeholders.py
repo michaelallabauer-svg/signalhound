@@ -206,4 +206,69 @@ class AmassAdapter(PlaceholderScannerAdapter):
 class NucleiAdapter(PlaceholderScannerAdapter):
     name = "nuclei"
     display_name = "ProjectDiscovery Nuclei"
-    supported_target_notes = "Future finding discovery adapter; execution is intentionally deferred to Epic 6."
+    binary_name = "nuclei"
+    supported_target_notes = "External finding discovery adapter for a single scope-approved target."
+    execution_supported = True
+
+    def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
+        self.validate_target(target)
+        command = ["nuclei", "-jsonl", "-target", target.value]
+        return PreparedScannerJob(
+            adapter_name=self.name,
+            target=target.value,
+            command=command,
+            config={
+                "adapter": self.name,
+                "target": target.value,
+                "scope_id": target.scope_id,
+                "organization_id": target.organization_id,
+                "command": command,
+                "output_format": "jsonl",
+            },
+        )
+
+    def execute(self, prepared_job: PreparedScannerJob) -> str:
+        return ExternalToolScannerAdapter.execute(self, prepared_job)
+
+    def parse_result(self, raw_output: str) -> Any:
+        records = []
+        for line in raw_output.splitlines():
+            if line.strip():
+                records.append(json.loads(line))
+        return records
+
+    def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:
+        findings: list[dict[str, Any]] = []
+        for record in parsed_result:
+            info = record.get("info", {})
+            severity = str(info.get("severity", "info")).upper()
+            if severity == "UNKNOWN":
+                severity = "INFO"
+            host = str(record.get("host") or record.get("matched-at") or record.get("ip") or "").strip().lower()
+            host = host.rstrip("/")
+            if "://" in host:
+                host = host.split("://", 1)[1]
+            host = host.split("/", 1)[0].rstrip(".")
+            if not host:
+                continue
+
+            findings.append(
+                {
+                    "asset_type": "HOST",
+                    "asset_value": host,
+                    "title": str(info.get("name") or record.get("template-id") or "Nuclei finding"),
+                    "description": info.get("description"),
+                    "severity": severity if severity in {"INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"} else "INFO",
+                    "source": self.name,
+                    "external_reference": record.get("template-id"),
+                    "remediation": info.get("remediation"),
+                    "evidence": {
+                        "matched_at": record.get("matched-at"),
+                        "type": record.get("type"),
+                        "matcher_name": record.get("matcher-name"),
+                        "template_id": record.get("template-id"),
+                        "metadata": info.get("metadata", {}),
+                    },
+                }
+            )
+        return NormalizedScannerResult(findings=findings, metadata={"adapter": self.name})
