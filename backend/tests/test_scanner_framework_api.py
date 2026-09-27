@@ -59,7 +59,24 @@ def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_se
     assert job["adapter_name"] == "nmap"
     assert job["target"] == "www.example.com"
     assert job["status"] == "PREPARED"
-    assert job["prepared_config"]["command"] == ["nmap", "-oX", "-", "-sV", "www.example.com"]
+    assert job["prepared_config"]["command"] == [
+        "nmap",
+        "-oX",
+        "-",
+        "-Pn",
+        "-n",
+        "--max-retries",
+        "1",
+        "--host-timeout",
+        "240s",
+        "-sV",
+        "--version-intensity",
+        "2",
+        "-p",
+        "80,443",
+        "www.example.com",
+    ]
+    assert job["prepared_config"]["profile"] == "web_service_discovery"
 
     stored_job = db_session.get(ScannerJob, job["id"])
     assert stored_job is not None
@@ -108,7 +125,15 @@ def test_prepare_scanner_job_rejects_unknown_adapter(client: TestClient) -> None
     assert response.status_code == 404
 
 
-def test_run_scanner_job_is_disabled_by_default(client: TestClient) -> None:
+def test_run_scanner_job_is_disabled_by_default(client: TestClient, monkeypatch) -> None:
+    from app.api import scanner_jobs as scanner_jobs_api
+
+    monkeypatch.setattr(
+        scanner_jobs_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=False, scanner_timeout_seconds=30),
+    )
+
     organization_id, scope_id = create_org_scope(client)
     create_response = client.post(
         "/api/v1/scanner-jobs",

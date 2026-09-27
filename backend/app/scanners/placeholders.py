@@ -81,7 +81,23 @@ class NmapAdapter(PlaceholderScannerAdapter):
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)
-        command = ["nmap", "-oX", "-", "-sV", target.value]
+        command = [
+            "nmap",
+            "-oX",
+            "-",
+            "-Pn",
+            "-n",
+            "--max-retries",
+            "1",
+            "--host-timeout",
+            "240s",
+            "-sV",
+            "--version-intensity",
+            "2",
+            "-p",
+            "80,443",
+            target.value,
+        ]
         return PreparedScannerJob(
             adapter_name=self.name,
             target=target.value,
@@ -93,6 +109,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
                 "organization_id": target.organization_id,
                 "command": command,
                 "output_format": "xml",
+                "profile": "web_service_discovery",
             },
         )
 

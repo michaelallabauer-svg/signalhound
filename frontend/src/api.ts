@@ -61,6 +61,9 @@ export type ScannerJob = {
   target: string;
   status: "PREPARED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   error_message: string | null;
+  prepared_config: Record<string, unknown>;
+  raw_output: string | null;
+  normalized_result: Record<string, unknown> | null;
   requested_at: string;
 };
 
@@ -139,6 +142,7 @@ export const api = {
   createFinding: (payload: Record<string, unknown>) => request<Finding>("/findings", post(payload)),
   scannerAdapters: () => request<ScannerAdapter[]>("/scanner-adapters"),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),
+  scannerJob: (jobId: number) => request<ScannerJob>(`/scanner-jobs/${jobId}`),
   createScannerJob: (payload: Record<string, unknown>) => request<ScannerJob>("/scanner-jobs", post(payload)),
   runScannerJob: async (jobId: number) => {
     const job = await request<ScannerJob>(`/scanner-jobs/${jobId}/run`, post({}));

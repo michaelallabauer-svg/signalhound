@@ -256,6 +256,21 @@ th {
   color: #765428;
 }
 
+.run-output {
+  background: #0f171b;
+  border: 1px solid #27363c;
+  border-radius: 6px;
+  color: #d5f3ff;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 .stack {
   display: grid;
   gap: 18px;

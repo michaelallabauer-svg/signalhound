@@ -563,14 +563,20 @@ function ScannersTab({
   adapters: ScannerAdapter[];
   jobs: ScannerJob[];
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
-  onRun: (jobId: number) => Promise<unknown>;
+  onRun: (jobId: number) => Promise<boolean>;
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
+  const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
 
   async function handleRun(jobId: number) {
+    const job = jobs.find((candidate) => candidate.id === jobId);
     setRunningJobId(jobId);
-    await onRun(jobId);
+    setRunOutput(`Starting ${job?.adapter_name ?? "scanner"} job #${jobId} for ${job?.target ?? "target"}...`);
+    const startedAt = new Date();
+    const success = await onRun(jobId);
+    const refreshedJob = await api.scannerJob(jobId);
+    setRunOutput(formatRunOutput(refreshedJob, startedAt, success));
     setRunningJobId(null);
   }
 
@@ -664,6 +670,10 @@ function ScannersTab({
         </table>
         {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
       </section>
+      <section className="panel">
+        <PanelHeader title="Run output" />
+        <pre className="run-output">{runOutput}</pre>
+      </section>
     </section>
   );
 }
@@ -699,6 +709,34 @@ function formatJobDetail(job: ScannerJob) {
   }
 
   return job.error_message;
+}
+
+function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
+  const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 1000));
+  const command = Array.isArray(job.prepared_config.command) ? job.prepared_config.command.join(" ") : "n/a";
+  const header = [
+    `Job #${job.id}`,
+    `Adapter: ${job.adapter_name}`,
+    `Target: ${job.target}`,
+    `Status: ${job.status}`,
+    `Duration observed in UI: ${durationSeconds}s`,
+    `Command: ${command}`,
+  ];
+
+  if (!success || job.status === "FAILED") {
+    return [...header, "", `Failure: ${formatJobDetail(job)}`].join("\n");
+  }
+
+  const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);
+  return [...header, "", trimOutput(output)].join("\n");
+}
+
+function trimOutput(output: string) {
+  const maxLength = 6000;
+  if (output.length <= maxLength) {
+    return output || "No scanner output returned.";
+  }
+  return `${output.slice(0, maxLength)}\n\n... output truncated in UI ...`;
 }
 
 function ChangesTab({
