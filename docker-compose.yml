@@ -34,7 +34,7 @@ services:
       DATABASE_URL: postgresql+psycopg://signalhound:signalhound@postgres:5432/signalhound
       REDIS_URL: redis://redis:6379/0
     ports:
-      - "8000:8000"
+      - "8010:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,4 +59,3 @@ services:
 
 volumes:
   postgres-data:
-

@@ -50,13 +50,13 @@ docker compose up --build
 FastAPI will be available at:
 
 ```text
-http://localhost:8000
+http://localhost:8010
 ```
 
 Health check:
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8010/health
 ```
 
 Expected response:
@@ -156,4 +156,3 @@ Deferred to later epics:
 - Finding management
 - Change detection
 - Frontend
-
