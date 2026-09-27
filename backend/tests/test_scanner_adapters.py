@@ -86,6 +86,38 @@ def test_nmap_adapter_ignores_pn_user_set_hosts_without_open_services() -> None:
     assert [asset["value"] for asset in normalized.assets] == ["192.168.1.43"]
 
 
+def test_nmap_adapter_ignores_unknown_response_hosts_without_open_services() -> None:
+    raw_output = """
+    <nmaprun>
+      <host>
+        <status state="up" reason="unknown-response"/>
+        <address addr="192.168.1.42" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="filtered"/>
+          </port>
+        </ports>
+      </host>
+      <host>
+        <status state="up" reason="unknown-response"/>
+        <address addr="192.168.1.43" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="open"/>
+            <service name="https"/>
+          </port>
+        </ports>
+      </host>
+    </nmaprun>
+    """
+
+    adapter = NmapAdapter()
+    normalized = adapter.normalize_result(adapter.parse_result(raw_output))
+
+    assert [asset["value"] for asset in normalized.assets] == ["192.168.1.43"]
+    assert [service["asset_value"] for service in normalized.services] == ["192.168.1.43"]
+
+
 def test_amass_adapter_parses_json_lines() -> None:
     raw_output = """
     {"name":"www.example.com","domain":"example.com","addresses":[{"ip":"203.0.113.10"}],"tag":"api"}

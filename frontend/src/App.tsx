@@ -551,6 +551,10 @@ function InventoryTab({
   onCreateAsset: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({ asset_type: "SUBDOMAIN", value: "", source: "manual", scope_id: "" });
+  const [showInactiveAssets, setShowInactiveAssets] = useState(false);
+  const visibleAssets = showInactiveAssets ? assets : assets.filter((asset) => asset.active);
+  const visibleAssetIds = new Set(visibleAssets.map((asset) => asset.id));
+  const visibleServices = services.filter((service) => visibleAssetIds.has(service.asset_id));
   const assetValue = (assetId: number) => assets.find((asset) => asset.id === assetId)?.value ?? `asset:${assetId}`;
   return (
     <section className="stack">
@@ -599,10 +603,22 @@ function InventoryTab({
       </section>
       <div className="two-column">
         <section className="panel">
-          <PanelHeader title="Assets" />
+          <PanelHeader
+            title="Assets"
+            action={
+              <label className="inline-toggle">
+                <input
+                  checked={showInactiveAssets}
+                  onChange={(event) => setShowInactiveAssets(event.target.checked)}
+                  type="checkbox"
+                />
+                Show inactive
+              </label>
+            }
+          />
           <SimpleTable
             columns={["Value", "Type", "Scope", "State"]}
-            rows={assets.map((asset) => [
+            rows={visibleAssets.map((asset) => [
               asset.value,
               asset.asset_type,
               asset.scope_id ? "AUTHORIZED" : "UNVERIFIED",
@@ -615,7 +631,7 @@ function InventoryTab({
           <PanelHeader title="Services" />
           <SimpleTable
             columns={["Asset", "Protocol", "Port", "Name"]}
-            rows={services.map((service) => [
+            rows={visibleServices.map((service) => [
               assetValue(service.asset_id),
               service.protocol,
               String(service.port),
@@ -1281,10 +1297,11 @@ function Metric({
   );
 }
 
-function PanelHeader({ title }: { title: string }) {
+function PanelHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <header className="panel-header">
       <h2>{title}</h2>
+      {action}
     </header>
   );
 }

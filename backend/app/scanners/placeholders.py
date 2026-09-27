@@ -168,7 +168,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
             status_reason = status.attrib.get("reason") if status is not None else None
             if status_state != "up":
                 continue
-            if status_reason == "user-set" and not host_services:
+            if status_reason in {"user-set", "unknown-response"} and not host_services:
                 continue
 
             assets.append(
