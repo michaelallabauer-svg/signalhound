@@ -40,6 +40,12 @@ type LoadState = {
   health: string;
 };
 
+type ScannerActivity = {
+  jobId: number;
+  adapter: string;
+  target: string;
+} | null;
+
 const initialState: LoadState = {
   organizations: [],
   scopes: [],
@@ -60,6 +66,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [scannerActivity, setScannerActivity] = useState<ScannerActivity>(null);
 
   const selectedOrganization = state.organizations.find((organization) => organization.id === selectedOrgId) ?? null;
 
@@ -168,6 +175,7 @@ export function App() {
             );
           })}
         </nav>
+        <SidebarRunStatus activity={scannerActivity} health={state.health} />
       </aside>
 
       <main className="workspace">
@@ -242,13 +250,21 @@ export function App() {
                 adapters={state.scannerAdapters}
                 jobs={state.scannerJobs}
                 onPrepare={(payload) => withAction(() => api.createScannerJob(payload), "Scanner job prepared")}
-                onRun={(jobId) =>
-                  withAction(
-                    () => api.runScannerJob(jobId),
-                    "Scanner job finished",
-                    "Scanner job is running. This can take a while.",
-                  )
-                }
+                onRun={async (jobId) => {
+                  setError(null);
+                  try {
+                    await api.runScannerJob(jobId);
+                    setNotice("Scanner job finished");
+                    await refresh();
+                    return true;
+                  } catch (caught) {
+                    setError(caught instanceof Error ? caught.message : "Unknown error");
+                    setNotice(null);
+                    await refresh();
+                    return false;
+                  }
+                }}
+                onRunStateChange={setScannerActivity}
               />
             )}
             {activeTab === "changes" && selectedOrgId && (
@@ -261,6 +277,25 @@ export function App() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function SidebarRunStatus({ activity, health }: { activity: ScannerActivity; health: string }) {
+  return (
+    <div className={activity ? "sidebar-status running" : "sidebar-status"} aria-live="polite">
+      <span>{activity ? "Scanner running" : "System"}</span>
+      {activity ? (
+        <strong>
+          #{activity.jobId} {activity.adapter}
+          <small>{activity.target}</small>
+        </strong>
+      ) : (
+        <strong>
+          API {health}
+          <small>No active scanner job</small>
+        </strong>
+      )}
     </div>
   );
 }
@@ -574,6 +609,7 @@ function ScannersTab({
   jobs,
   onPrepare,
   onRun,
+  onRunStateChange,
 }: {
   organizationId: number;
   scopes: Scope[];
@@ -581,6 +617,7 @@ function ScannersTab({
   jobs: ScannerJob[];
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
   onRun: (jobId: number) => Promise<boolean>;
+  onRunStateChange: (activity: ScannerActivity) => void;
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
@@ -589,12 +626,21 @@ function ScannersTab({
   async function handleRun(jobId: number) {
     const job = jobs.find((candidate) => candidate.id === jobId);
     setRunningJobId(jobId);
-    setRunOutput(`Starting ${job?.adapter_name ?? "scanner"} job #${jobId} for ${job?.target ?? "target"}...`);
+    onRunStateChange({
+      jobId,
+      adapter: job?.adapter_name ?? "scanner",
+      target: job?.target ?? "target",
+    });
+    setRunOutput(formatRunningOutput(jobId, job));
     const startedAt = new Date();
-    const success = await onRun(jobId);
-    const refreshedJob = await api.scannerJob(jobId);
-    setRunOutput(formatRunOutput(refreshedJob, startedAt, success));
-    setRunningJobId(null);
+    try {
+      const success = await onRun(jobId);
+      const refreshedJob = await api.scannerJob(jobId);
+      setRunOutput(formatRunOutput(refreshedJob, startedAt, success));
+    } finally {
+      setRunningJobId(null);
+      onRunStateChange(null);
+    }
   }
 
   return (
@@ -695,6 +741,26 @@ function ScannersTab({
   );
 }
 
+function formatRunningOutput(jobId: number, job: ScannerJob | undefined) {
+  const command = Array.isArray(job?.prepared_config.command) ? job.prepared_config.command.join(" ") : "n/a";
+  return [
+    "RUN",
+    `  Job: #${jobId}`,
+    `  Adapter: ${job?.adapter_name ?? "scanner"}`,
+    `  Target: ${job?.target ?? "target"}`,
+    "  Status: running",
+    "",
+    "IMPORT RESULT",
+    "  Waiting for scanner output.",
+    "",
+    "SCANNER OUTPUT",
+    "  The scanner process is still running. Output will appear here when the job finishes.",
+    "",
+    "COMMAND",
+    `  ${command}`,
+  ].join("\n");
+}
+
 function StatusPill({ status }: { status: ScannerJob["status"] | "RUNNING" }) {
   return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
 }
@@ -731,22 +797,27 @@ function formatJobDetail(job: ScannerJob) {
 function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
   const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 1000));
   const command = Array.isArray(job.prepared_config.command) ? job.prepared_config.command.join(" ") : "n/a";
-  const header = [
-    `Job #${job.id}`,
-    `Adapter: ${job.adapter_name}`,
-    `Target: ${job.target}`,
-    `Status: ${job.status}`,
-    `Imported: ${formatNormalizedSummary(job)}`,
-    `Duration observed in UI: ${durationSeconds}s`,
-    `Command: ${command}`,
+  const summary = [
+    "RUN",
+    `  Job: #${job.id}`,
+    `  Adapter: ${job.adapter_name}`,
+    `  Target: ${job.target}`,
+    `  Status: ${job.status}`,
+    `  Duration observed in UI: ${durationSeconds}s`,
+    "",
+    "IMPORT RESULT",
+    `  ${formatNormalizedSummary(job)}`,
+    "",
+    "COMMAND",
+    `  ${command}`,
   ];
 
   if (!success || job.status === "FAILED") {
-    return [...header, "", `Failure: ${formatJobDetail(job)}`].join("\n");
+    return [...summary, "", "FAILURE", `  ${formatJobDetail(job)}`].join("\n");
   }
 
   const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);
-  return [...header, "", trimOutput(output)].join("\n");
+  return [...summary, "", "SCANNER OUTPUT", trimOutput(output)].join("\n");
 }
 
 function formatNormalizedSummary(job: ScannerJob) {

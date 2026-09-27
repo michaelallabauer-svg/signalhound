@@ -139,6 +139,43 @@ th {
   border-color: #42524d;
 }
 
+.sidebar-status {
+  background: #121d23;
+  border: 1px solid #27363c;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  min-width: 0;
+  padding: 12px;
+}
+
+.sidebar-status.running {
+  border-color: #2d9d91;
+}
+
+.sidebar-status span {
+  color: #93a19b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sidebar-status strong {
+  color: #eef3ef;
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.sidebar-status small {
+  color: #b8c5bf;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .workspace {
   display: grid;
   gap: 18px;
@@ -434,7 +471,9 @@ th {
   }
 
   .brand div,
-  .nav-item span {
+  .nav-item span,
+  .sidebar-status span,
+  .sidebar-status small {
     display: none;
   }
 
@@ -449,6 +488,18 @@ th {
 
   .nav-item {
     justify-content: center;
+  }
+
+  .sidebar-status {
+    aspect-ratio: 1;
+    align-items: center;
+    justify-items: center;
+    padding: 6px;
+  }
+
+  .sidebar-status strong {
+    font-size: 11px;
+    text-align: center;
   }
 
   .metric-grid,
@@ -485,6 +536,13 @@ th {
 
   .nav-item {
     min-width: 44px;
+  }
+
+  .sidebar-status {
+    margin-left: auto;
+    margin-top: 0;
+    min-height: 44px;
+    min-width: 76px;
   }
 
   .workspace {
