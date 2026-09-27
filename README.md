@@ -1,6 +1,6 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, and **Epic 8: Basic Security Dashboard / UI**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, and **Epic 10: Assessment Run Visibility**.
 
 No exploitation features are implemented.
 
@@ -22,9 +22,11 @@ No exploitation features are implemented.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
 - `backend/app/api/findings.py` exposes normalized finding and lifecycle APIs.
 - `backend/app/api/changes.py` exposes persisted point-in-time change comparisons.
+- `backend/app/api/assessments.py` exposes scan profiles and assessment-run automation APIs.
 - `frontend/` contains the React dashboard UI for the implemented MVP workflows.
 - `backend/app/scanners/` contains the scanner adapter contract and registry.
 - `backend/app/api/scanner_jobs.py` prepares scanner jobs only after scope validation.
+- `backend/app/services/assessment_orchestration.py` prepares and executes profile-based scanner job sequences.
 - `backend/alembic/` contains the Alembic migration framework.
 - `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, Celery, and the frontend.
 
@@ -389,6 +391,43 @@ Epic 7 behavior:
 - Change-set creation is audited.
 - No management scoring is implemented.
 
+## Assessment Automation API
+
+List available scan profiles:
+
+```bash
+curl http://localhost:8010/api/v1/scan-profiles
+```
+
+Start an assessment run:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/assessments \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"scope_id":1,"profile_name":"external_quick","target":"www.example.com"}'
+```
+
+List assessment runs:
+
+```bash
+curl http://localhost:8010/api/v1/assessments?organization_id=1
+```
+
+View one assessment with linked scanner jobs:
+
+```bash
+curl http://localhost:8010/api/v1/assessments/1/detail
+```
+
+Epic 9 and 10 behavior:
+
+- Assessment targets are scope-validated before scanner jobs are created.
+- `external_quick` prepares and runs Nmap and Nuclei jobs.
+- `external_discovery` prepares and runs Amass, Nmap, and Nuclei jobs.
+- Assessment jobs execute sequentially in the Celery worker.
+- Assessment detail responses include linked scanner jobs, status, raw output, normalized results, and errors.
+- The dashboard refreshes active assessment runs while they are queued or running.
+
 ## Dashboard UI
 
 Open the dashboard:
@@ -405,6 +444,9 @@ Epic 8 behavior:
 - Asset observation form and inventory tables.
 - Finding creation and finding table.
 - Scanner job preparation and run action.
+- Assessment run start form.
+- Assessment run list with status and imported result counts.
+- Assessment detail view with linked scanner jobs, errors, and stored scanner output.
 - Change-set comparison form and change-set table.
 - Frontend is served by Docker Compose through the `frontend` service.
 - Browser API access is enabled through backend CORS configuration.
@@ -443,3 +485,5 @@ Implemented:
 - Asset, service, and finding change events
 - Change detection audit events
 - Basic security dashboard UI
+- Profile-based assessment run automation
+- Assessment detail view with linked scanner output

@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, and **Epic 8: Basic Security Dashboard / UI**.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, and **Epic 10: Assessment Run Visibility**.
 
 ## Epic 1 Deliverables
 
@@ -102,6 +102,27 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Scanner job preparation and run action
 - Change-set comparison and listing
 - Reproducible frontend build commands in README
+
+## Epic 9 Deliverables
+
+- Assessment run model for grouped scan execution
+- Static external scan profiles
+- External quick profile: Nmap and Nuclei
+- External discovery profile: Amass, Nmap, and Nuclei
+- Scope enforcement before any assessment jobs are prepared
+- Assessment API for profile listing, run creation, and run listing
+- Celery task for sequential scanner-job execution inside an assessment
+- Scanner jobs linked back to their assessment run
+- Basic assessment run summary counts
+- Dashboard control for starting an assessment from a selected scope and target
+
+## Epic 10 Deliverables
+
+- Assessment detail API including linked scanner jobs
+- Dashboard selection of previous assessment runs
+- Per-assessment job status, error, and output visibility
+- Automatic dashboard refresh while assessment runs are queued or running
+- Stored scanner output can be opened from the assessment detail view
 
 ## Security Boundary
 

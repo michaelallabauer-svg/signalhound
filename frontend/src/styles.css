@@ -309,6 +309,11 @@ th {
   color: #45514c;
 }
 
+.status-queued {
+  background: #f0f3f5;
+  color: #46525c;
+}
+
 .status-running {
   background: #eef5ff;
   color: #264d78;
@@ -347,6 +352,68 @@ th {
 
 .run-output-panel {
   min-width: 0;
+}
+
+.assessment-runs-table tbody tr {
+  cursor: pointer;
+}
+
+.assessment-runs-table tbody tr:hover,
+.selected-row {
+  background: #f4f8f6;
+}
+
+.assessment-detail {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.assessment-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.assessment-summary .summary-item {
+  padding: 10px 12px;
+}
+
+.assessment-summary .summary-item strong {
+  font-size: 18px;
+}
+
+.assessment-job-list {
+  display: grid;
+  gap: 8px;
+}
+
+.assessment-job-button {
+  background: #ffffff;
+  border-color: #d7dfda;
+  color: #1d2428;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  min-height: 0;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.assessment-job-button:hover {
+  background: #f4f8f6;
+}
+
+.assessment-job-button span {
+  font-weight: 900;
+}
+
+.assessment-job-button small {
+  color: #54615b;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .stack {
@@ -546,6 +613,7 @@ th {
   .metric-grid,
   .two-column,
   .scanner-workbench,
+  .assessment-summary,
   .summary-strip,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -601,6 +669,7 @@ th {
   .metric-grid,
   .two-column,
   .scanner-workbench,
+  .assessment-summary,
   .summary-strip,
   .form-grid,
   .inline-form {

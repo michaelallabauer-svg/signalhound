@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.models.scanner_job import ScannerJob
 from app.models.scope import ScanZone
 from app.repositories.assessments import create_assessment_run, get_assessment_run, list_assessment_runs
 from app.repositories.organizations import get_organization
 from app.repositories.scopes import get_scope
-from app.schemas.assessment import AssessmentRunCreate, AssessmentRunRead, ScanProfileRead
+from app.schemas.assessment import AssessmentRunCreate, AssessmentRunDetailRead, AssessmentRunRead, ScanProfileRead
+from app.schemas.scanner import ScannerJobRead
 from app.services.assessment_orchestration import prepare_assessment_jobs
 from app.services.audit import record_audit_event
 from app.services.scan_profiles import get_scan_profile, list_scan_profiles
@@ -112,3 +115,23 @@ def get(assessment_run_id: int, db: Session = Depends(get_db)) -> AssessmentRunR
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
     return run
+
+
+@router.get("/assessments/{assessment_run_id}/detail", response_model=AssessmentRunDetailRead)
+def get_detail(assessment_run_id: int, db: Session = Depends(get_db)) -> AssessmentRunDetailRead:
+    run = get_assessment_run(db, assessment_run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
+
+    jobs = list(
+        db.scalars(
+            select(ScannerJob)
+            .where(ScannerJob.assessment_run_id == assessment_run_id)
+            .order_by(ScannerJob.id)
+        )
+    )
+    run_payload = AssessmentRunRead.model_validate(run, from_attributes=True).model_dump()
+    return AssessmentRunDetailRead(
+        **run_payload,
+        jobs=[ScannerJobRead.model_validate(job, from_attributes=True) for job in jobs],
+    )

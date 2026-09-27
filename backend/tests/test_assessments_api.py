@@ -75,6 +75,12 @@ def test_create_assessment_prepares_jobs_and_enqueues(
     assert [job.adapter_name for job in jobs] == ["nmap", "nuclei"]
     assert all(job.assessment_run_id == stored_run.id for job in jobs)
 
+    detail_response = client.get(f"/api/v1/assessments/{run['id']}/detail")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["id"] == run["id"]
+    assert [job["adapter_name"] for job in detail["jobs"]] == ["nmap", "nuclei"]
+
 
 def test_create_assessment_rejects_out_of_scope_target(
     client: TestClient,

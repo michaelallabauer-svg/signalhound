@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.assessment import AssessmentRunStatus
+from app.schemas.scanner import ScannerJobRead
 
 
 class ScanProfileRead(BaseModel):
@@ -37,3 +38,7 @@ class AssessmentRunRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AssessmentRunDetailRead(AssessmentRunRead):
+    jobs: list[ScannerJobRead]

@@ -17,6 +17,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   api,
   Asset,
+  AssessmentRunDetail,
   AssessmentRun,
   ChangeSet,
   Finding,
@@ -86,8 +87,10 @@ export function App() {
 
   const selectedOrganization = state.organizations.find((organization) => organization.id === selectedOrgId) ?? null;
 
-  async function refresh(preferredOrgId = selectedOrgId) {
-    setLoading(true);
+  async function refresh(preferredOrgId = selectedOrgId, showLoading = true) {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [health, organizations, scannerAdapters, scanProfiles] = await Promise.all([
@@ -131,13 +134,28 @@ export function App() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    const hasActiveAssessment = state.assessmentRuns.some((run) => ["QUEUED", "RUNNING"].includes(run.status));
+    if (activeTab !== "scanners" || selectedOrgId === null || !hasActiveAssessment) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refresh(selectedOrgId, false);
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, selectedOrgId, state.assessmentRuns]);
 
   const metrics = useMemo(() => {
     const criticalFindings = state.findings.filter((finding) => finding.severity === "CRITICAL").length;
@@ -657,8 +675,49 @@ function ScannersTab({
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
   const [assessmentForm, setAssessmentForm] = useState({ scope_id: "", profile_name: "external_quick", target: "" });
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState<number | null>(null);
+  const [assessmentDetail, setAssessmentDetail] = useState<AssessmentRunDetail | null>(null);
+  const [assessmentDetailError, setAssessmentDetailError] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
+
+  useEffect(() => {
+    if (assessmentRuns.length === 0) {
+      setSelectedAssessmentId(null);
+      setAssessmentDetail(null);
+      return;
+    }
+    if (selectedAssessmentId === null || !assessmentRuns.some((run) => run.id === selectedAssessmentId)) {
+      setSelectedAssessmentId(assessmentRuns[assessmentRuns.length - 1].id);
+    }
+  }, [assessmentRuns, selectedAssessmentId]);
+
+  useEffect(() => {
+    if (selectedAssessmentId === null) {
+      setAssessmentDetail(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    async function loadAssessmentDetail() {
+      setAssessmentDetailError(null);
+      try {
+        const detail = await api.assessmentDetail(selectedAssessmentId as number);
+        if (!cancelled) {
+          setAssessmentDetail(detail);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setAssessmentDetailError(caught instanceof Error ? caught.message : "Could not load assessment details");
+        }
+      }
+    }
+
+    void loadAssessmentDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAssessmentId, assessmentRuns, jobs]);
 
   async function handleRun(jobId: number) {
     const job = jobs.find((candidate) => candidate.id === jobId);
@@ -785,16 +844,61 @@ function ScannersTab({
       </section>
       <section className="panel">
         <PanelHeader title="Assessment runs" />
-        <SimpleTable
-          columns={["Profile", "Target", "Status", "Imported"]}
-          rows={assessmentRuns.map((run) => [
-            run.profile_name,
-            run.target,
-            run.status,
-            `${run.summary.assets ?? 0} assets, ${run.summary.services ?? 0} services, ${run.summary.findings ?? 0} findings`,
-          ])}
-          empty="No assessment runs"
-        />
+        <table className="assessment-runs-table">
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th>Imported</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assessmentRuns.map((run) => (
+              <tr
+                className={run.id === selectedAssessmentId ? "selected-row" : undefined}
+                key={run.id}
+                onClick={() => setSelectedAssessmentId(run.id)}
+              >
+                <td>{run.profile_name}</td>
+                <td>{run.target}</td>
+                <td>
+                  <StatusPill status={run.status} />
+                </td>
+                <td>{`${run.summary.assets ?? 0} assets, ${run.summary.services ?? 0} services, ${
+                  run.summary.findings ?? 0
+                } findings`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {assessmentRuns.length === 0 && <div className="empty-inline">No assessment runs</div>}
+        {assessmentDetailError && <div className="notice error">{assessmentDetailError}</div>}
+        {assessmentDetail && (
+          <div className="assessment-detail">
+            <div className="assessment-summary">
+              <SummaryItem label="Jobs" value={assessmentDetail.jobs.length} />
+              <SummaryItem label="Assets" value={assessmentDetail.summary.assets ?? 0} />
+              <SummaryItem label="Services" value={assessmentDetail.summary.services ?? 0} />
+              <SummaryItem label="Findings" value={assessmentDetail.summary.findings ?? 0} />
+            </div>
+            {assessmentDetail.error_message && <div className="notice error">{assessmentDetail.error_message}</div>}
+            <div className="assessment-job-list">
+              {assessmentDetail.jobs.map((job) => (
+                <button
+                  className="assessment-job-button"
+                  key={job.id}
+                  onClick={() => setRunOutput(formatStoredJobOutput(job))}
+                  type="button"
+                >
+                  <span>{job.adapter_name}</span>
+                  <StatusPill status={job.status} />
+                  <small>{formatJobDetail(job)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
       <div className="scanner-workbench">
         <section className="panel">
@@ -873,7 +977,7 @@ function formatRunningOutput(jobId: number, job: ScannerJob | undefined) {
   ].join("\n");
 }
 
-function StatusPill({ status }: { status: ScannerJob["status"] | "RUNNING" }) {
+function StatusPill({ status }: { status: ScannerJob["status"] | AssessmentRun["status"] }) {
   return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
 }
 
@@ -926,6 +1030,30 @@ function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
 
   if (!success || job.status === "FAILED") {
     return [...summary, "", "FAILURE", `  ${formatJobDetail(job)}`].join("\n");
+  }
+
+  const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);
+  return [...summary, "", "SCANNER OUTPUT", trimOutput(output)].join("\n");
+}
+
+function formatStoredJobOutput(job: ScannerJob) {
+  const command = Array.isArray(job.prepared_config.command) ? job.prepared_config.command.join(" ") : "n/a";
+  const summary = [
+    "RUN",
+    `  Job: #${job.id}`,
+    `  Adapter: ${job.adapter_name}`,
+    `  Target: ${job.target}`,
+    `  Status: ${job.status}`,
+    "",
+    "IMPORT RESULT",
+    `  ${formatNormalizedSummary(job)}`,
+    "",
+    "COMMAND",
+    `  ${command}`,
+  ];
+
+  if (job.error_message) {
+    summary.push("", "FAILURE", `  ${formatJobDetail(job)}`);
   }
 
   const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);

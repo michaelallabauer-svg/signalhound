@@ -97,6 +97,10 @@ export type AssessmentRun = {
   completed_at: string | null;
 };
 
+export type AssessmentRunDetail = AssessmentRun & {
+  jobs: ScannerJob[];
+};
+
 export type ChangeSet = {
   id: number;
   organization_id: number;
@@ -173,6 +177,7 @@ export const api = {
   scannerAdapters: () => request<ScannerAdapter[]>("/scanner-adapters"),
   scanProfiles: () => request<ScanProfile[]>("/scan-profiles"),
   assessments: (organizationId: number) => request<AssessmentRun[]>(`/assessments?organization_id=${organizationId}`),
+  assessmentDetail: (assessmentRunId: number) => request<AssessmentRunDetail>(`/assessments/${assessmentRunId}/detail`),
   createAssessment: (payload: Record<string, unknown>) => request<AssessmentRun>("/assessments", post(payload)),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),
   scannerJob: (jobId: number) => request<ScannerJob>(`/scanner-jobs/${jobId}`),
