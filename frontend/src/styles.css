@@ -95,33 +95,29 @@ th {
 }
 
 .sidebar {
-  background: #202826;
+  background: #081016;
   color: #eef3ef;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 22px 16px;
+  gap: 22px;
+  padding: 18px 14px;
 }
 
 .brand {
   align-items: center;
   display: flex;
-  gap: 12px;
-  min-height: 48px;
+  min-height: 96px;
+  overflow: hidden;
+  width: 100%;
 }
 
-.brand strong,
-.brand span {
+.brand-logo {
   display: block;
-}
-
-.brand strong {
-  font-size: 18px;
-}
-
-.brand span {
-  color: #b9c5bf;
-  font-size: 12px;
+  height: auto;
+  max-height: 106px;
+  object-fit: contain;
+  object-position: left center;
+  width: 100%;
 }
 
 .nav-list {
@@ -398,6 +394,15 @@ th {
     display: none;
   }
 
+  .brand {
+    min-height: 52px;
+  }
+
+  .brand-logo {
+    max-height: 52px;
+    width: 52px;
+  }
+
   .nav-item {
     justify-content: center;
   }
@@ -422,6 +427,11 @@ th {
 
   .brand {
     min-width: 44px;
+  }
+
+  .brand-logo {
+    max-height: 44px;
+    width: 44px;
   }
 
   .nav-list {

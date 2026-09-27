@@ -11,11 +11,11 @@ import {
   Plus,
   Radar,
   RefreshCw,
-  ShieldCheck,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api, Asset, ChangeSet, Finding, Organization, ScannerAdapter, ScannerJob, Scope, Service } from "./api";
+import signalHoundLogo from "./assets/signalhound-logo.png";
 
 type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes";
 
@@ -149,11 +149,7 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <ShieldCheck size={26} />
-          <div>
-            <strong>SignalHound</strong>
-            <span>External Recon</span>
-          </div>
+          <img alt="SignalHound" className="brand-logo" src={signalHoundLogo} />
         </div>
         <nav className="nav-list" aria-label="Primary">
           {tabs.map((tab) => {
