@@ -57,6 +57,7 @@ export type ScannerJob = {
   id: number;
   organization_id: number;
   scope_id: number;
+  assessment_run_id: number | null;
   adapter_name: string;
   target: string;
   status: "PREPARED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
@@ -65,6 +66,35 @@ export type ScannerJob = {
   raw_output: string | null;
   normalized_result: Record<string, unknown> | null;
   requested_at: string;
+};
+
+export type ScanProfile = {
+  name: string;
+  display_name: string;
+  description: string;
+  scan_zone: "EXTERNAL";
+  adapter_sequence: string[];
+};
+
+export type AssessmentRun = {
+  id: number;
+  organization_id: number;
+  scope_id: number;
+  profile_name: string;
+  target: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  summary: {
+    assets?: number;
+    services?: number;
+    findings?: number;
+    job_ids?: number[];
+    failed_job_ids?: number[];
+    adapters?: string[];
+  };
+  error_message: string | null;
+  requested_at: string;
+  started_at: string | null;
+  completed_at: string | null;
 };
 
 export type ChangeSet = {
@@ -141,6 +171,9 @@ export const api = {
   findings: (organizationId: number) => request<Finding[]>(`/findings?organization_id=${organizationId}`),
   createFinding: (payload: Record<string, unknown>) => request<Finding>("/findings", post(payload)),
   scannerAdapters: () => request<ScannerAdapter[]>("/scanner-adapters"),
+  scanProfiles: () => request<ScanProfile[]>("/scan-profiles"),
+  assessments: (organizationId: number) => request<AssessmentRun[]>(`/assessments?organization_id=${organizationId}`),
+  createAssessment: (payload: Record<string, unknown>) => request<AssessmentRun>("/assessments", post(payload)),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),
   scannerJob: (jobId: number) => request<ScannerJob>(`/scanner-jobs/${jobId}`),
   createScannerJob: (payload: Record<string, unknown>) => request<ScannerJob>("/scanner-jobs", post(payload)),

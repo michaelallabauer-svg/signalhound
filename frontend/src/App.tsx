@@ -14,7 +14,19 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { api, Asset, ChangeSet, Finding, Organization, ScannerAdapter, ScannerJob, Scope, Service } from "./api";
+import {
+  api,
+  Asset,
+  AssessmentRun,
+  ChangeSet,
+  Finding,
+  Organization,
+  ScanProfile,
+  ScannerAdapter,
+  ScannerJob,
+  Scope,
+  Service,
+} from "./api";
 import signalHoundLogo from "./assets/signalhound-logo.png";
 
 type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes";
@@ -35,6 +47,8 @@ type LoadState = {
   services: Service[];
   findings: Finding[];
   scannerAdapters: ScannerAdapter[];
+  scanProfiles: ScanProfile[];
+  assessmentRuns: AssessmentRun[];
   scannerJobs: ScannerJob[];
   changeSets: ChangeSet[];
   health: string;
@@ -53,6 +67,8 @@ const initialState: LoadState = {
   services: [],
   findings: [],
   scannerAdapters: [],
+  scanProfiles: [],
+  assessmentRuns: [],
   scannerJobs: [],
   changeSets: [],
   health: "unknown",
@@ -74,24 +90,26 @@ export function App() {
     setLoading(true);
     setError(null);
     try {
-      const [health, organizations, scannerAdapters] = await Promise.all([
+      const [health, organizations, scannerAdapters, scanProfiles] = await Promise.all([
         api.health(),
         api.organizations(),
         api.scannerAdapters(),
+        api.scanProfiles(),
       ]);
       const organizationId = preferredOrgId ?? organizations[0]?.id ?? null;
 
       if (organizationId === null) {
-        setState({ ...initialState, organizations, scannerAdapters, health: health.status });
+        setState({ ...initialState, organizations, scannerAdapters, scanProfiles, health: health.status });
         setSelectedOrgId(null);
         return;
       }
 
-      const [scopes, assets, findings, scannerJobs, changeSets] = await Promise.all([
+      const [scopes, assets, findings, scannerJobs, assessmentRuns, changeSets] = await Promise.all([
         api.scopes(organizationId),
         api.assets(organizationId),
         api.findings(organizationId),
         api.scannerJobs(organizationId),
+        api.assessments(organizationId),
         api.changeSets(organizationId),
       ]);
       const services = (await Promise.all(assets.map((asset) => api.services(asset.id)))).flat();
@@ -104,6 +122,8 @@ export function App() {
         services,
         findings,
         scannerAdapters,
+        scanProfiles,
+        assessmentRuns,
         scannerJobs,
         changeSets,
         health: health.status,
@@ -129,6 +149,7 @@ export function App() {
       openFindings: state.findings.filter((finding) => !["RESOLVED", "FALSE_POSITIVE"].includes(finding.status)).length,
       criticalHigh: criticalFindings + highFindings,
       preparedJobs: state.scannerJobs.filter((job) => job.status === "PREPARED").length,
+      runningAssessments: state.assessmentRuns.filter((run) => ["QUEUED", "RUNNING"].includes(run.status)).length,
       lastChangeCount: state.changeSets[0]?.summary?.total ?? 0,
     };
   }, [state]);
@@ -248,8 +269,17 @@ export function App() {
                 organizationId={selectedOrgId}
                 scopes={state.scopes}
                 adapters={state.scannerAdapters}
+                profiles={state.scanProfiles}
                 jobs={state.scannerJobs}
+                assessmentRuns={state.assessmentRuns}
                 onPrepare={(payload) => withAction(() => api.createScannerJob(payload), "Scanner job prepared")}
+                onCreateAssessment={(payload) =>
+                  withAction(
+                    () => api.createAssessment(payload),
+                    "Assessment queued",
+                    "Assessment queued. Scanner jobs will run in the worker.",
+                  )
+                }
                 onRun={async (jobId) => {
                   setError(null);
                   try {
@@ -606,20 +636,27 @@ function ScannersTab({
   organizationId,
   scopes,
   adapters,
+  profiles,
   jobs,
+  assessmentRuns,
   onPrepare,
+  onCreateAssessment,
   onRun,
   onRunStateChange,
 }: {
   organizationId: number;
   scopes: Scope[];
   adapters: ScannerAdapter[];
+  profiles: ScanProfile[];
   jobs: ScannerJob[];
+  assessmentRuns: AssessmentRun[];
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
+  onCreateAssessment: (payload: Record<string, unknown>) => Promise<unknown>;
   onRun: (jobId: number) => Promise<boolean>;
   onRunStateChange: (activity: ScannerActivity) => void;
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
+  const [assessmentForm, setAssessmentForm] = useState({ scope_id: "", profile_name: "external_quick", target: "" });
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
 
@@ -645,6 +682,62 @@ function ScannersTab({
 
   return (
     <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Run assessment" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onCreateAssessment({
+              organization_id: organizationId,
+              scope_id: Number(assessmentForm.scope_id),
+              profile_name: assessmentForm.profile_name,
+              target: assessmentForm.target,
+            });
+            setAssessmentForm({ scope_id: "", profile_name: "external_quick", target: "" });
+          }}
+        >
+          <Field label="Profile">
+            <select
+              value={assessmentForm.profile_name}
+              onChange={(event) => setAssessmentForm({ ...assessmentForm, profile_name: event.target.value })}
+            >
+              {profiles.map((profile) => (
+                <option key={profile.name} value={profile.name}>
+                  {profile.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Scope">
+            <select
+              required
+              value={assessmentForm.scope_id}
+              onChange={(event) => setAssessmentForm({ ...assessmentForm, scope_id: event.target.value })}
+            >
+              <option value="">Select scope</option>
+              {scopes
+                .filter((scope) => scope.active)
+                .map((scope) => (
+                  <option key={scope.id} value={scope.id}>
+                    {scope.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <Field label="Target">
+            <input
+              required
+              value={assessmentForm.target}
+              onChange={(event) => setAssessmentForm({ ...assessmentForm, target: event.target.value })}
+            />
+          </Field>
+          <button type="submit">
+            <Play size={16} />
+            Run assessment
+          </button>
+        </form>
+      </section>
       <section className="panel">
         <PanelHeader title="Prepare scanner job" />
         <form
@@ -689,6 +782,19 @@ function ScannersTab({
             Prepare
           </button>
         </form>
+      </section>
+      <section className="panel">
+        <PanelHeader title="Assessment runs" />
+        <SimpleTable
+          columns={["Profile", "Target", "Status", "Imported"]}
+          rows={assessmentRuns.map((run) => [
+            run.profile_name,
+            run.target,
+            run.status,
+            `${run.summary.assets ?? 0} assets, ${run.summary.services ?? 0} services, ${run.summary.findings ?? 0} findings`,
+          ])}
+          empty="No assessment runs"
+        />
       </section>
       <div className="scanner-workbench">
         <section className="panel">

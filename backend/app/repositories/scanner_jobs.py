@@ -12,10 +12,12 @@ def create_scanner_job(
     adapter_name: str,
     target: str,
     prepared_config: dict,
+    assessment_run_id: int | None = None,
 ) -> ScannerJob:
     job = ScannerJob(
         organization_id=organization_id,
         scope_id=scope_id,
+        assessment_run_id=assessment_run_id,
         adapter_name=adapter_name,
         target=target,
         status=ScannerJobStatus.PREPARED,

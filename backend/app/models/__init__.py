@@ -6,6 +6,7 @@ class Base(DeclarativeBase):
 
 
 from app.models.audit_log import AuditLog  # noqa: E402, F401
+from app.models.assessment import AssessmentRun  # noqa: E402, F401
 from app.models.asset import Asset, AssetObservation  # noqa: E402, F401
 from app.models.change import ChangeEvent, ChangeSet  # noqa: E402, F401
 from app.models.finding import Finding, FindingObservation  # noqa: E402, F401
