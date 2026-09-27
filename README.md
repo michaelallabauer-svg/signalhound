@@ -158,6 +158,10 @@ docker compose logs -f frontend
 docker compose down
 ```
 
+## Recon Guides
+
+- [Local Network Recon Guide](docs/local-network-recon.md)
+
 ## Scope Management API
 
 Create an organization:
