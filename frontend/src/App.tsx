@@ -761,7 +761,7 @@ function ScannersTab({
   showArchivedAssessments: boolean;
   onToggleArchivedAssessments: (show: boolean) => void;
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
-  onCreateAssessment: (payload: Record<string, unknown>) => Promise<unknown>;
+  onCreateAssessment: (payload: Record<string, unknown>) => Promise<boolean>;
   onRun: (jobId: number) => Promise<boolean>;
   onRunStateChange: (activity: ScannerActivity) => void;
   onArchiveAssessment: (assessmentRunId: number) => Promise<unknown>;
@@ -771,6 +771,7 @@ function ScannersTab({
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<number | null>(null);
   const [assessmentDetail, setAssessmentDetail] = useState<AssessmentRunDetail | null>(null);
   const [assessmentDetailError, setAssessmentDetailError] = useState<string | null>(null);
+  const [assessmentSubmitError, setAssessmentSubmitError] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
   const activeScopes = useMemo(() => scopes.filter((scope) => scope.active), [scopes]);
@@ -853,6 +854,7 @@ function ScannersTab({
 
   function updateAssessmentScope(scopeId: string) {
     const scope = activeScopes.find((candidate) => String(candidate.id) === scopeId);
+    setAssessmentSubmitError(null);
     setAssessmentForm((current) => ({
       ...current,
       scope_id: scopeId,
@@ -875,16 +877,21 @@ function ScannersTab({
         <PanelHeader title="Run assessment" />
         <form
           className="form-grid"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
+            setAssessmentSubmitError(null);
             const selectedProfile = availableProfiles.find((profile) => profile.name === assessmentForm.profile_name);
-            void onCreateAssessment({
+            const created = await onCreateAssessment({
               organization_id: organizationId,
               scope_id: Number(assessmentForm.scope_id),
               profile_name: selectedProfile?.name ?? assessmentForm.profile_name,
               target: assessmentForm.target,
             });
-            setAssessmentForm({ scope_id: "", profile_name: "external_quick", target: "" });
+            if (created) {
+              setAssessmentForm({ scope_id: "", profile_name: "external_quick", target: "" });
+            } else {
+              setAssessmentSubmitError("Assessment could not be queued. Check the selected scope and target.");
+            }
           }}
         >
           <Field label="Profile">
@@ -925,6 +932,7 @@ function ScannersTab({
             Run assessment
           </button>
         </form>
+        {assessmentSubmitError && <div className="notice error">{assessmentSubmitError}</div>}
       </section>
       <section className="panel">
         <PanelHeader title="Prepare scanner job" />
