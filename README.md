@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, and **Epic 7: Change Detection**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, and **Epic 8: Basic Security Dashboard / UI**.
 
-No exploitation features or frontend are implemented yet.
+No exploitation features are implemented.
 
 ## Prerequisites
 
@@ -22,10 +22,11 @@ No exploitation features or frontend are implemented yet.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
 - `backend/app/api/findings.py` exposes normalized finding and lifecycle APIs.
 - `backend/app/api/changes.py` exposes persisted point-in-time change comparisons.
+- `frontend/` contains the React dashboard UI for the implemented MVP workflows.
 - `backend/app/scanners/` contains the scanner adapter contract and registry.
 - `backend/app/api/scanner_jobs.py` prepares scanner jobs only after scope validation.
 - `backend/alembic/` contains the Alembic migration framework.
-- `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, and Celery.
+- `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, Celery, and the frontend.
 
 The health endpoint is intentionally small in Epic 1 but is structured so dependency checks can be added later without changing the API boundary.
 
@@ -46,6 +47,8 @@ Important variables:
 - `REDIS_URL`
 - `SCANNER_EXECUTION_ENABLED`
 - `SCANNER_TIMEOUT_SECONDS`
+- `CORS_ORIGINS`
+- `VITE_API_BASE_URL`
 
 Never commit real credentials.
 
@@ -59,6 +62,12 @@ FastAPI will be available at:
 
 ```text
 http://localhost:8010
+```
+
+The dashboard UI will be available at:
+
+```text
+http://localhost:8011
 ```
 
 Health check:
@@ -118,6 +127,14 @@ Docker:
 docker compose run --rm backend pytest
 ```
 
+Frontend build:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
 ## Start the Celery Worker
 
 Docker Compose starts the worker by default. To run it manually:
@@ -132,8 +149,10 @@ docker compose run --rm worker celery -A app.workers.celery_app.celery_app worke
 docker compose up --build
 docker compose run --rm backend alembic upgrade head
 docker compose run --rm backend pytest
+cd frontend && npm run build
 docker compose logs -f backend
 docker compose logs -f worker
+docker compose logs -f frontend
 docker compose down
 ```
 
@@ -355,7 +374,27 @@ Epic 7 behavior:
 - Added and removed objects are detected from the existing historized inventory fields.
 - Findings are considered removed when they are terminal at the comparison point (`RESOLVED` or `FALSE_POSITIVE`).
 - Change-set creation is audited.
-- No frontend, management scoring, or future dashboard behavior is implemented.
+- No management scoring is implemented.
+
+## Dashboard UI
+
+Open the dashboard:
+
+```text
+http://localhost:8011
+```
+
+Epic 8 behavior:
+
+- Organization selection and creation.
+- Overview metrics for active scopes, assets, services, findings, scanner jobs, backend health, and latest change count.
+- Scope creation and scope table.
+- Asset observation form and inventory tables.
+- Finding creation and finding table.
+- Scanner job preparation and run action.
+- Change-set comparison form and change-set table.
+- Frontend is served by Docker Compose through the `frontend` service.
+- Browser API access is enabled through backend CORS configuration.
 
 ## Implemented Scope
 
@@ -390,7 +429,4 @@ Implemented:
 - Point-in-time change-set comparisons
 - Asset, service, and finding change events
 - Change detection audit events
-
-Deferred to later epics:
-
-- Frontend
+- Basic security dashboard UI

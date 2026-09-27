@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .venv/
+node_modules/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -12,4 +13,3 @@ dist/
 build/
 *.egg-info/
 celerybeat-schedule
-

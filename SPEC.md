@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, and **Epic 7: Change Detection**. Later epics may add a UI.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, and **Epic 8: Basic Security Dashboard / UI**.
 
 ## Epic 1 Deliverables
 
@@ -89,6 +89,19 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - API endpoints under `/api/v1/change-sets`
 - Audit events for change-set creation
 - Tests proving asset, service, and finding changes are detected
+
+## Epic 8 Deliverables
+
+- React dashboard UI served as a Docker Compose service
+- Backend CORS configuration for the dashboard origin
+- Organization selection and creation
+- Overview metrics for implemented MVP data
+- Scope creation and listing
+- Asset observation and inventory views
+- Finding creation and listing
+- Scanner job preparation and run action
+- Change-set comparison and listing
+- Reproducible frontend build commands in README
 
 ## Security Boundary
 

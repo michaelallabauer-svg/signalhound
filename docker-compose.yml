@@ -61,5 +61,15 @@ services:
         condition: service_healthy
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=INFO
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8010/api/v1}
+    ports:
+      - "8011:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres-data:

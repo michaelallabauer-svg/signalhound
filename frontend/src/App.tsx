@@ -1,0 +1,769 @@
+import {
+  Activity,
+  AlertTriangle,
+  Box,
+  BriefcaseBusiness,
+  Crosshair,
+  Database,
+  GitCompare,
+  Globe2,
+  Play,
+  Plus,
+  Radar,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
+import { api, Asset, ChangeSet, Finding, Organization, ScannerAdapter, ScannerJob, Scope, Service } from "./api";
+
+type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes";
+
+const tabs: { id: Tab; label: string; icon: typeof Activity }[] = [
+  { id: "overview", label: "Overview", icon: Activity },
+  { id: "scopes", label: "Scopes", icon: Crosshair },
+  { id: "inventory", label: "Inventory", icon: Database },
+  { id: "findings", label: "Findings", icon: AlertTriangle },
+  { id: "scanners", label: "Scanners", icon: Radar },
+  { id: "changes", label: "Changes", icon: GitCompare },
+];
+
+type LoadState = {
+  organizations: Organization[];
+  scopes: Scope[];
+  assets: Asset[];
+  services: Service[];
+  findings: Finding[];
+  scannerAdapters: ScannerAdapter[];
+  scannerJobs: ScannerJob[];
+  changeSets: ChangeSet[];
+  health: string;
+};
+
+const initialState: LoadState = {
+  organizations: [],
+  scopes: [],
+  assets: [],
+  services: [],
+  findings: [],
+  scannerAdapters: [],
+  scannerJobs: [],
+  changeSets: [],
+  health: "unknown",
+};
+
+export function App() {
+  const [state, setState] = useState<LoadState>(initialState);
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedOrganization = state.organizations.find((organization) => organization.id === selectedOrgId) ?? null;
+
+  async function refresh(preferredOrgId = selectedOrgId) {
+    setLoading(true);
+    setError(null);
+    try {
+      const [health, organizations, scannerAdapters] = await Promise.all([
+        api.health(),
+        api.organizations(),
+        api.scannerAdapters(),
+      ]);
+      const organizationId = preferredOrgId ?? organizations[0]?.id ?? null;
+
+      if (organizationId === null) {
+        setState({ ...initialState, organizations, scannerAdapters, health: health.status });
+        setSelectedOrgId(null);
+        return;
+      }
+
+      const [scopes, assets, findings, scannerJobs, changeSets] = await Promise.all([
+        api.scopes(organizationId),
+        api.assets(organizationId),
+        api.findings(organizationId),
+        api.scannerJobs(organizationId),
+        api.changeSets(organizationId),
+      ]);
+      const services = (await Promise.all(assets.map((asset) => api.services(asset.id)))).flat();
+
+      setSelectedOrgId(organizationId);
+      setState({
+        organizations,
+        scopes,
+        assets,
+        services,
+        findings,
+        scannerAdapters,
+        scannerJobs,
+        changeSets,
+        health: health.status,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const metrics = useMemo(() => {
+    const criticalFindings = state.findings.filter((finding) => finding.severity === "CRITICAL").length;
+    const highFindings = state.findings.filter((finding) => finding.severity === "HIGH").length;
+    return {
+      activeScopes: state.scopes.filter((scope) => scope.active).length,
+      activeAssets: state.assets.filter((asset) => asset.active).length,
+      activeServices: state.services.filter((service) => service.active).length,
+      openFindings: state.findings.filter((finding) => !["RESOLVED", "FALSE_POSITIVE"].includes(finding.status)).length,
+      criticalHigh: criticalFindings + highFindings,
+      preparedJobs: state.scannerJobs.filter((job) => job.status === "PREPARED").length,
+      lastChangeCount: state.changeSets[0]?.summary?.total ?? 0,
+    };
+  }, [state]);
+
+  async function withAction(action: () => Promise<unknown>, success: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      await action();
+      setNotice(success);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unknown error");
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <ShieldCheck size={26} />
+          <div>
+            <strong>SignalHound</strong>
+            <span>External Recon</span>
+          </div>
+        </div>
+        <nav className="nav-list" aria-label="Primary">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                className={activeTab === tab.id ? "nav-item active" : "nav-item"}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
+                type="button"
+              >
+                <Icon size={18} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <main className="workspace">
+        <header className="topbar">
+          <div>
+            <span className="eyebrow">Dashboard</span>
+            <h1>{selectedOrganization?.name ?? "No organization selected"}</h1>
+          </div>
+          <div className="topbar-actions">
+            <label>
+              Organization
+              <select
+                value={selectedOrgId ?? ""}
+                onChange={(event) => {
+                  const id = Number(event.target.value);
+                  setSelectedOrgId(id);
+                  void refresh(id);
+                }}
+              >
+                {state.organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="icon-button" onClick={() => void refresh()} title="Refresh data" type="button">
+              <RefreshCw size={18} />
+            </button>
+          </div>
+        </header>
+
+        {notice && <div className="notice success">{notice}</div>}
+        {error && <div className="notice error">{error}</div>}
+
+        {loading ? (
+          <div className="empty-state">Loading dashboard data</div>
+        ) : state.organizations.length === 0 ? (
+          <EmptyOrganization onCreate={(name) => withAction(() => api.createOrganization(name), "Organization created")} />
+        ) : (
+          <>
+            {activeTab === "overview" && <Overview metrics={metrics} state={state} />}
+            {activeTab === "scopes" && selectedOrgId && (
+              <ScopesTab
+                organizationId={selectedOrgId}
+                scopes={state.scopes}
+                onCreate={(payload) => withAction(() => api.createScope(payload), "Scope created")}
+              />
+            )}
+            {activeTab === "inventory" && selectedOrgId && (
+              <InventoryTab
+                organizationId={selectedOrgId}
+                assets={state.assets}
+                services={state.services}
+                scopes={state.scopes}
+                onCreateAsset={(payload) => withAction(() => api.createAsset(payload), "Asset observed")}
+              />
+            )}
+            {activeTab === "findings" && selectedOrgId && (
+              <FindingsTab
+                organizationId={selectedOrgId}
+                assets={state.assets}
+                findings={state.findings}
+                onCreate={(payload) => withAction(() => api.createFinding(payload), "Finding recorded")}
+              />
+            )}
+            {activeTab === "scanners" && selectedOrgId && (
+              <ScannersTab
+                organizationId={selectedOrgId}
+                scopes={state.scopes}
+                adapters={state.scannerAdapters}
+                jobs={state.scannerJobs}
+                onPrepare={(payload) => withAction(() => api.createScannerJob(payload), "Scanner job prepared")}
+                onRun={(jobId) => withAction(() => api.runScannerJob(jobId), "Scanner job executed")}
+              />
+            )}
+            {activeTab === "changes" && selectedOrgId && (
+              <ChangesTab
+                organizationId={selectedOrgId}
+                changeSets={state.changeSets}
+                onCompare={(payload) => withAction(() => api.createChangeSet(payload), "Change set created")}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function EmptyOrganization({ onCreate }: { onCreate: (name: string) => Promise<unknown> }) {
+  const [name, setName] = useState("");
+  return (
+    <section className="panel narrow">
+      <h2>Create organization</h2>
+      <form
+        className="inline-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onCreate(name);
+          setName("");
+        }}
+      >
+        <input onChange={(event) => setName(event.target.value)} placeholder="Example Corp" required value={name} />
+        <button type="submit">
+          <Plus size={16} />
+          Create
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function Overview({ metrics, state }: { metrics: Record<string, number>; state: LoadState }) {
+  return (
+    <section className="stack">
+      <div className="metric-grid">
+        <Metric icon={Crosshair} label="Active scopes" value={metrics.activeScopes} />
+        <Metric icon={Box} label="Active assets" value={metrics.activeAssets} />
+        <Metric icon={Globe2} label="Open services" value={metrics.activeServices} />
+        <Metric icon={AlertTriangle} label="Open findings" value={metrics.openFindings} tone="warning" />
+        <Metric icon={AlertTriangle} label="Critical / high" value={metrics.criticalHigh} tone="danger" />
+        <Metric icon={Radar} label="Prepared jobs" value={metrics.preparedJobs} />
+        <Metric icon={GitCompare} label="Latest changes" value={metrics.lastChangeCount} />
+        <Metric icon={Activity} label="Backend" value={state.health === "ok" ? "OK" : "Check"} />
+      </div>
+      <div className="two-column">
+        <section className="panel">
+          <PanelHeader title="Recent findings" />
+          <SimpleTable
+            columns={["Title", "Severity", "Status"]}
+            rows={state.findings.slice(0, 6).map((finding) => [finding.title, finding.severity, finding.status])}
+            empty="No findings"
+          />
+        </section>
+        <section className="panel">
+          <PanelHeader title="Latest scanner jobs" />
+          <SimpleTable
+            columns={["Adapter", "Target", "Status"]}
+            rows={state.scannerJobs.slice(0, 6).map((job) => [job.adapter_name, job.target, job.status])}
+            empty="No scanner jobs"
+          />
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function ScopesTab({
+  organizationId,
+  scopes,
+  onCreate,
+}: {
+  organizationId: number;
+  scopes: Scope[];
+  onCreate: (payload: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState({ name: "", target_type: "DOMAIN", target: "" });
+  return (
+    <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Create scope" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onCreate({ organization_id: organizationId, ...form });
+            setForm({ name: "", target_type: "DOMAIN", target: "" });
+          }}
+        >
+          <Field label="Name">
+            <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          </Field>
+          <Field label="Type">
+            <select value={form.target_type} onChange={(event) => setForm({ ...form, target_type: event.target.value })}>
+              <option>DOMAIN</option>
+              <option>HOSTNAME</option>
+              <option>IP</option>
+              <option>CIDR</option>
+            </select>
+          </Field>
+          <Field label="Target">
+            <input required value={form.target} onChange={(event) => setForm({ ...form, target: event.target.value })} />
+          </Field>
+          <button type="submit">
+            <Plus size={16} />
+            Create
+          </button>
+        </form>
+      </section>
+      <section className="panel">
+        <PanelHeader title="Scopes" />
+        <SimpleTable
+          columns={["Name", "Type", "Target", "Zone", "State"]}
+          rows={scopes.map((scope) => [
+            scope.name,
+            scope.target_type,
+            scope.target,
+            scope.scan_zone,
+            scope.active ? "ACTIVE" : "INACTIVE",
+          ])}
+          empty="No scopes"
+        />
+      </section>
+    </section>
+  );
+}
+
+function InventoryTab({
+  organizationId,
+  scopes,
+  assets,
+  services,
+  onCreateAsset,
+}: {
+  organizationId: number;
+  scopes: Scope[];
+  assets: Asset[];
+  services: Service[];
+  onCreateAsset: (payload: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState({ asset_type: "SUBDOMAIN", value: "", source: "manual", scope_id: "" });
+  const assetValue = (assetId: number) => assets.find((asset) => asset.id === assetId)?.value ?? `asset:${assetId}`;
+  return (
+    <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Observe asset" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onCreateAsset({
+              organization_id: organizationId,
+              asset_type: form.asset_type,
+              value: form.value,
+              source: form.source,
+              scope_id: form.scope_id ? Number(form.scope_id) : null,
+            });
+            setForm({ asset_type: "SUBDOMAIN", value: "", source: "manual", scope_id: "" });
+          }}
+        >
+          <Field label="Type">
+            <select value={form.asset_type} onChange={(event) => setForm({ ...form, asset_type: event.target.value })}>
+              <option>DOMAIN</option>
+              <option>SUBDOMAIN</option>
+              <option>IP</option>
+              <option>HOST</option>
+            </select>
+          </Field>
+          <Field label="Value">
+            <input required value={form.value} onChange={(event) => setForm({ ...form, value: event.target.value })} />
+          </Field>
+          <Field label="Scope">
+            <select value={form.scope_id} onChange={(event) => setForm({ ...form, scope_id: event.target.value })}>
+              <option value="">Unverified</option>
+              {scopes.map((scope) => (
+                <option key={scope.id} value={scope.id}>
+                  {scope.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button type="submit">
+            <Plus size={16} />
+            Record
+          </button>
+        </form>
+      </section>
+      <div className="two-column">
+        <section className="panel">
+          <PanelHeader title="Assets" />
+          <SimpleTable
+            columns={["Value", "Type", "Scope", "State"]}
+            rows={assets.map((asset) => [
+              asset.value,
+              asset.asset_type,
+              asset.scope_id ? "AUTHORIZED" : "UNVERIFIED",
+              asset.active ? "ACTIVE" : "INACTIVE",
+            ])}
+            empty="No assets"
+          />
+        </section>
+        <section className="panel">
+          <PanelHeader title="Services" />
+          <SimpleTable
+            columns={["Asset", "Protocol", "Port", "Name"]}
+            rows={services.map((service) => [
+              assetValue(service.asset_id),
+              service.protocol,
+              String(service.port),
+              service.name ?? "-",
+            ])}
+            empty="No services"
+          />
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function FindingsTab({
+  organizationId,
+  assets,
+  findings,
+  onCreate,
+}: {
+  organizationId: number;
+  assets: Asset[];
+  findings: Finding[];
+  onCreate: (payload: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState({ asset_id: "", title: "", severity: "LOW", source: "manual" });
+  return (
+    <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Record finding" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onCreate({
+              organization_id: organizationId,
+              asset_id: Number(form.asset_id),
+              title: form.title,
+              severity: form.severity,
+              source: form.source,
+            });
+            setForm({ asset_id: "", title: "", severity: "LOW", source: "manual" });
+          }}
+        >
+          <Field label="Asset">
+            <select required value={form.asset_id} onChange={(event) => setForm({ ...form, asset_id: event.target.value })}>
+              <option value="">Select asset</option>
+              {assets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.value}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Title">
+            <input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+          </Field>
+          <Field label="Severity">
+            <select value={form.severity} onChange={(event) => setForm({ ...form, severity: event.target.value })}>
+              <option>INFO</option>
+              <option>LOW</option>
+              <option>MEDIUM</option>
+              <option>HIGH</option>
+              <option>CRITICAL</option>
+            </select>
+          </Field>
+          <button type="submit">
+            <Plus size={16} />
+            Record
+          </button>
+        </form>
+      </section>
+      <section className="panel">
+        <PanelHeader title="Findings" />
+        <SimpleTable
+          columns={["Title", "Severity", "Status", "Asset"]}
+          rows={findings.map((finding) => [
+            finding.title,
+            finding.severity,
+            finding.status,
+            assets.find((asset) => asset.id === finding.asset_id)?.value ?? String(finding.asset_id),
+          ])}
+          empty="No findings"
+        />
+      </section>
+    </section>
+  );
+}
+
+function ScannersTab({
+  organizationId,
+  scopes,
+  adapters,
+  jobs,
+  onPrepare,
+  onRun,
+}: {
+  organizationId: number;
+  scopes: Scope[];
+  adapters: ScannerAdapter[];
+  jobs: ScannerJob[];
+  onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
+  onRun: (jobId: number) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
+  return (
+    <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Prepare scanner job" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onPrepare({
+              organization_id: organizationId,
+              scope_id: Number(form.scope_id),
+              adapter_name: form.adapter_name,
+              target: form.target,
+            });
+            setForm({ scope_id: "", adapter_name: "nmap", target: "" });
+          }}
+        >
+          <Field label="Adapter">
+            <select value={form.adapter_name} onChange={(event) => setForm({ ...form, adapter_name: event.target.value })}>
+              {adapters.map((adapter) => (
+                <option key={adapter.name} value={adapter.name}>
+                  {adapter.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Scope">
+            <select required value={form.scope_id} onChange={(event) => setForm({ ...form, scope_id: event.target.value })}>
+              <option value="">Select scope</option>
+              {scopes
+                .filter((scope) => scope.active)
+                .map((scope) => (
+                  <option key={scope.id} value={scope.id}>
+                    {scope.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <Field label="Target">
+            <input required value={form.target} onChange={(event) => setForm({ ...form, target: event.target.value })} />
+          </Field>
+          <button type="submit">
+            <Plus size={16} />
+            Prepare
+          </button>
+        </form>
+      </section>
+      <section className="panel">
+        <PanelHeader title="Scanner jobs" />
+        <table>
+          <thead>
+            <tr>
+              <th>Adapter</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th>Run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((job) => (
+              <tr key={job.id}>
+                <td>{job.adapter_name}</td>
+                <td>{job.target}</td>
+                <td>{job.status}</td>
+                <td>
+                  <button className="icon-button compact" onClick={() => void onRun(job.id)} title="Run scanner job" type="button">
+                    <Play size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
+      </section>
+    </section>
+  );
+}
+
+function ChangesTab({
+  organizationId,
+  changeSets,
+  onCompare,
+}: {
+  organizationId: number;
+  changeSets: ChangeSet[];
+  onCompare: (payload: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState({ baseline_at: "", comparison_at: "" });
+  return (
+    <section className="stack">
+      <section className="panel">
+        <PanelHeader title="Compare exposure state" />
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onCompare({
+              organization_id: organizationId,
+              baseline_at: new Date(form.baseline_at).toISOString(),
+              comparison_at: new Date(form.comparison_at).toISOString(),
+            });
+          }}
+        >
+          <Field label="Baseline">
+            <input
+              required
+              type="datetime-local"
+              value={form.baseline_at}
+              onChange={(event) => setForm({ ...form, baseline_at: event.target.value })}
+            />
+          </Field>
+          <Field label="Comparison">
+            <input
+              required
+              type="datetime-local"
+              value={form.comparison_at}
+              onChange={(event) => setForm({ ...form, comparison_at: event.target.value })}
+            />
+          </Field>
+          <button type="submit">
+            <GitCompare size={16} />
+            Compare
+          </button>
+        </form>
+      </section>
+      <section className="panel">
+        <PanelHeader title="Change sets" />
+        <SimpleTable
+          columns={["Created", "Baseline", "Comparison", "Events"]}
+          rows={changeSets.map((changeSet) => [
+            formatDate(changeSet.created_at),
+            formatDate(changeSet.baseline_at),
+            formatDate(changeSet.comparison_at),
+            String(changeSet.summary?.total ?? 0),
+          ])}
+          empty="No change sets"
+        />
+      </section>
+    </section>
+  );
+}
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number | string;
+  tone?: "warning" | "danger";
+}) {
+  return (
+    <section className={tone ? `metric ${tone}` : "metric"}>
+      <Icon size={19} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </section>
+  );
+}
+
+function PanelHeader({ title }: { title: string }) {
+  return (
+    <header className="panel-header">
+      <h2>{title}</h2>
+    </header>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label>
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function SimpleTable({ columns, rows, empty }: { columns: string[]; rows: string[][]; empty: string }) {
+  return (
+    <>
+      <table>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${row.join(":")}-${rowIndex}`}>
+              {row.map((cell, cellIndex) => (
+                <td key={`${cell}-${cellIndex}`}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length === 0 && <div className="empty-inline">{empty}</div>}
+    </>
+  );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
