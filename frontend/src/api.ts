@@ -30,6 +30,14 @@ export type Asset = {
   last_seen: string;
 };
 
+export type AssetObservation = {
+  id: number;
+  asset_id: number;
+  observed_at: string;
+  source: string;
+  metadata: Record<string, unknown>;
+};
+
 export type Service = {
   id: number;
   asset_id: number;
@@ -38,6 +46,14 @@ export type Service = {
   name: string | null;
   source: string;
   active: boolean;
+};
+
+export type ServiceObservation = {
+  id: number;
+  service_id: number;
+  observed_at: string;
+  source: string;
+  metadata: Record<string, unknown>;
 };
 
 export type Finding = {
@@ -51,6 +67,13 @@ export type Finding = {
   status: "NEW" | "ACKNOWLEDGED" | "IN_PROGRESS" | "RESOLVED" | "ACCEPTED_RISK" | "FALSE_POSITIVE";
   first_seen: string;
   last_seen: string;
+};
+
+export type AssetDetail = Asset & {
+  observations: AssetObservation[];
+  services: Service[];
+  service_observations: ServiceObservation[];
+  findings: Finding[];
 };
 
 export type ScannerJob = {
@@ -171,6 +194,7 @@ export const api = {
   createScope: (payload: Record<string, unknown>) => request<Scope>("/scopes", post(payload)),
   archiveScope: (scopeId: number) => request<void>(`/scopes/${scopeId}`, del()),
   assets: (organizationId: number) => request<Asset[]>(`/assets?organization_id=${organizationId}`),
+  assetDetail: (assetId: number) => request<AssetDetail>(`/assets/${assetId}/detail`),
   createAsset: (payload: Record<string, unknown>) => request<Asset>("/assets", post(payload)),
   services: (assetId: number) => request<Service[]>(`/services?asset_id=${assetId}`),
   findings: (organizationId: number) => request<Finding[]>(`/findings?organization_id=${organizationId}`),

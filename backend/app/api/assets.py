@@ -4,9 +4,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.scope import ScanZone
 from app.repositories.assets import get_asset, list_asset_observations, list_assets, observe_asset
+from app.repositories.findings import list_findings
 from app.repositories.organizations import get_organization
 from app.repositories.scopes import get_scope
-from app.schemas.asset import AssetObservationRead, AssetObserve, AssetRead, AssetUpdate
+from app.repositories.services import list_service_observations, list_services
+from app.schemas.asset import AssetDetailRead, AssetObservationRead, AssetObserve, AssetRead, AssetUpdate
+from app.schemas.finding import FindingRead
+from app.schemas.service import ServiceObservationRead, ServiceRead
 from app.services.asset_normalization import normalize_asset_value
 from app.services.audit import record_audit_event
 from app.services.scope_validation import ScopeValidator
@@ -81,6 +85,37 @@ def get(asset_id: int, db: Session = Depends(get_db)) -> AssetRead:
     return asset
 
 
+@router.get("/{asset_id}/detail", response_model=AssetDetailRead)
+def detail(asset_id: int, db: Session = Depends(get_db)) -> AssetDetailRead:
+    asset = get_asset(db, asset_id)
+    if asset is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    services = list_services(db, asset_id=asset_id)
+    service_observations = [
+        observation
+        for service in services
+        for observation in list_service_observations(db, service.id)
+    ]
+    asset_payload = AssetRead.model_validate(asset, from_attributes=True).model_dump()
+    return AssetDetailRead(
+        **asset_payload,
+        observations=[
+            AssetObservationRead.model_validate(observation, from_attributes=True)
+            for observation in list_asset_observations(db, asset_id)
+        ],
+        services=[ServiceRead.model_validate(service, from_attributes=True) for service in services],
+        service_observations=[
+            ServiceObservationRead.model_validate(observation, from_attributes=True)
+            for observation in service_observations
+        ],
+        findings=[
+            FindingRead.model_validate(finding, from_attributes=True)
+            for finding in list_findings(db, organization_id=asset.organization_id, asset_id=asset_id)
+        ],
+    )
+
+
 @router.patch("/{asset_id}", response_model=AssetRead)
 def update(asset_id: int, payload: AssetUpdate, db: Session = Depends(get_db)) -> AssetRead:
     asset = get_asset(db, asset_id)
@@ -113,4 +148,3 @@ def history(asset_id: int, db: Session = Depends(get_db)) -> list[AssetObservati
     if get_asset(db, asset_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
     return list_asset_observations(db, asset_id)
-

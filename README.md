@@ -250,6 +250,12 @@ View asset observation history:
 curl http://localhost:8010/api/v1/assets/1/observations
 ```
 
+View an asset detail bundle with observations, services, service observations, and findings:
+
+```bash
+curl http://localhost:8010/api/v1/assets/1/detail
+```
+
 Record or refresh a service observation:
 
 ```bash

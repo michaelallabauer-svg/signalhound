@@ -175,3 +175,57 @@ def test_service_requires_existing_asset(client: TestClient) -> None:
     )
 
     assert response.status_code == 404
+
+
+def test_asset_detail_includes_services_findings_and_observations(client: TestClient) -> None:
+    organization_id, scope_id = create_org_and_scope(client)
+    asset_response = client.post(
+        "/api/v1/assets",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "asset_type": "SUBDOMAIN",
+            "value": "app.example.com",
+            "source": "nmap",
+            "metadata": {"status_reason": "echo-reply"},
+        },
+    )
+    assert asset_response.status_code == 201
+    asset_id = int(asset_response.json()["id"])
+
+    service_response = client.post(
+        "/api/v1/services",
+        json={
+            "asset_id": asset_id,
+            "protocol": "TCP",
+            "port": 443,
+            "name": "https",
+            "source": "nmap",
+            "metadata": {"product": "nginx"},
+        },
+    )
+    assert service_response.status_code == 201
+    service_id = int(service_response.json()["id"])
+
+    finding_response = client.post(
+        "/api/v1/findings",
+        json={
+            "organization_id": organization_id,
+            "asset_id": asset_id,
+            "service_id": service_id,
+            "title": "Example finding",
+            "severity": "LOW",
+            "source": "manual",
+        },
+    )
+    assert finding_response.status_code == 201
+
+    detail_response = client.get(f"/api/v1/assets/{asset_id}/detail")
+
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["id"] == asset_id
+    assert detail["observations"][0]["metadata"] == {"status_reason": "echo-reply"}
+    assert detail["services"][0]["id"] == service_id
+    assert detail["service_observations"][0]["metadata"] == {"product": "nginx"}
+    assert detail["findings"][0]["title"] == "Example finding"

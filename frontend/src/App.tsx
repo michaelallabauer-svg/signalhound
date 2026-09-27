@@ -18,6 +18,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   api,
   Asset,
+  AssetDetail,
   AssessmentRunDetail,
   AssessmentRun,
   ChangeSet,
@@ -552,10 +553,48 @@ function InventoryTab({
 }) {
   const [form, setForm] = useState({ asset_type: "SUBDOMAIN", value: "", source: "manual", scope_id: "" });
   const [showInactiveAssets, setShowInactiveAssets] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null);
+  const [assetDetail, setAssetDetail] = useState<AssetDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const visibleAssets = showInactiveAssets ? assets : assets.filter((asset) => asset.active);
   const visibleAssetIds = new Set(visibleAssets.map((asset) => asset.id));
   const visibleServices = services.filter((service) => visibleAssetIds.has(service.asset_id));
   const assetValue = (assetId: number) => assets.find((asset) => asset.id === assetId)?.value ?? `asset:${assetId}`;
+  const selectedAsset = visibleAssets.find((asset) => asset.id === selectedAssetId) ?? visibleAssets[0] ?? null;
+
+  useEffect(() => {
+    if (selectedAssetId !== null && visibleAssets.some((asset) => asset.id === selectedAssetId)) {
+      return;
+    }
+    setSelectedAssetId(visibleAssets[0]?.id ?? null);
+  }, [selectedAssetId, visibleAssets]);
+
+  useEffect(() => {
+    if (selectedAsset === null) {
+      setAssetDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDetailError(null);
+    api
+      .assetDetail(selectedAsset.id)
+      .then((detail) => {
+        if (!cancelled) {
+          setAssetDetail(detail);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setAssetDetail(null);
+          setDetailError(caught instanceof Error ? caught.message : "Failed to load asset details");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAsset]);
+
   return (
     <section className="stack">
       <section className="panel">
@@ -624,24 +663,111 @@ function InventoryTab({
               asset.scope_id ? "AUTHORIZED" : "UNVERIFIED",
               asset.active ? "ACTIVE" : "INACTIVE",
             ])}
+            rowClassName={(rowIndex) => (visibleAssets[rowIndex]?.id === selectedAsset?.id ? "selected-row" : "")}
+            onRowClick={(rowIndex) => {
+              const asset = visibleAssets[rowIndex];
+              if (asset) {
+                setSelectedAssetId(asset.id);
+              }
+            }}
             empty="No assets"
           />
         </section>
         <section className="panel">
-          <PanelHeader title="Services" />
-          <SimpleTable
-            columns={["Asset", "Protocol", "Port", "Name"]}
-            rows={visibleServices.map((service) => [
-              assetValue(service.asset_id),
-              service.protocol,
-              String(service.port),
-              service.name ?? "-",
-            ])}
-            empty="No services"
-          />
+          <PanelHeader title={selectedAsset ? `Asset details: ${selectedAsset.value}` : "Asset details"} />
+          {detailError && <div className="notice error compact">{detailError}</div>}
+          {!detailError && selectedAsset && assetDetail?.id !== selectedAsset.id && (
+            <div className="empty-inline">Loading asset details</div>
+          )}
+          {!detailError && selectedAsset && assetDetail?.id === selectedAsset.id && (
+            <AssetDetailPanel detail={assetDetail} scope={scopes.find((scope) => scope.id === assetDetail.scope_id) ?? null} />
+          )}
+          {!selectedAsset && <div className="empty-inline">Select an asset</div>}
         </section>
       </div>
+      <section className="panel">
+        <PanelHeader title="Services" />
+        <SimpleTable
+          columns={["Asset", "Protocol", "Port", "Name"]}
+          rows={visibleServices.map((service) => [
+            assetValue(service.asset_id),
+            service.protocol,
+            String(service.port),
+            service.name ?? "-",
+          ])}
+          empty="No services"
+        />
+      </section>
     </section>
+  );
+}
+
+function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope | null }) {
+  const latestObservation = detail.observations.at(-1);
+  const latestMetadata = latestObservation?.metadata ?? {};
+  const statusReason = typeof latestMetadata.status_reason === "string" ? latestMetadata.status_reason : "-";
+  const addressType = typeof latestMetadata.addrtype === "string" ? latestMetadata.addrtype : "-";
+
+  return (
+    <div className="asset-detail">
+      <div className="detail-grid">
+        <SummaryItem label="State" value={detail.active ? "ACTIVE" : "INACTIVE"} />
+        <SummaryItem label="Scope" value={scope ? scope.name : "Unverified"} />
+        <SummaryItem label="Source" value={detail.source} />
+        <SummaryItem label="Known" value={detail.known_asset ? "YES" : "NO"} />
+      </div>
+      <dl className="detail-list">
+        <div>
+          <dt>First seen</dt>
+          <dd>{formatDate(detail.first_seen)}</dd>
+        </div>
+        <div>
+          <dt>Last seen</dt>
+          <dd>{formatDate(detail.last_seen)}</dd>
+        </div>
+        <div>
+          <dt>Discovery reason</dt>
+          <dd>{statusReason}</dd>
+        </div>
+        <div>
+          <dt>Address type</dt>
+          <dd>{addressType}</dd>
+        </div>
+      </dl>
+      <section className="detail-section">
+        <h3>Services</h3>
+        <SimpleTable
+          columns={["Protocol", "Port", "Name", "State"]}
+          rows={detail.services.map((service) => [
+            service.protocol,
+            String(service.port),
+            service.name ?? "-",
+            service.active ? "ACTIVE" : "INACTIVE",
+          ])}
+          empty="No services observed"
+        />
+      </section>
+      <section className="detail-section">
+        <h3>Findings</h3>
+        <SimpleTable
+          columns={["Severity", "Title", "Status"]}
+          rows={detail.findings.map((finding) => [finding.severity, finding.title, finding.status])}
+          empty="No findings"
+        />
+      </section>
+      <section className="detail-section">
+        <h3>Recent observations</h3>
+        <SimpleTable
+          columns={["Observed", "Source", "Metadata"]}
+          rows={detail.observations.slice(-5).reverse().map((observation) => [
+            formatDate(observation.observed_at),
+            observation.source,
+            compactJson(observation.metadata),
+          ])}
+          empty="No observations"
+        />
+      </section>
+    </div>
   );
 }
 
@@ -728,7 +854,7 @@ function FindingsTab({
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: number }) {
+function SummaryItem({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="summary-item">
       <span>{label}</span>
@@ -1341,7 +1467,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SimpleTable({ columns, rows, empty }: { columns: string[]; rows: string[][]; empty: string }) {
+function SimpleTable({
+  columns,
+  rows,
+  empty,
+  onRowClick,
+  rowClassName,
+}: {
+  columns: string[];
+  rows: React.ReactNode[][];
+  empty: string;
+  onRowClick?: (rowIndex: number) => void;
+  rowClassName?: (rowIndex: number) => string;
+}) {
   return (
     <>
       <table>
@@ -1354,9 +1492,13 @@ function SimpleTable({ columns, rows, empty }: { columns: string[]; rows: string
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr key={`${row.join(":")}-${rowIndex}`}>
+            <tr
+              className={[onRowClick ? "clickable-row" : "", rowClassName?.(rowIndex) ?? ""].filter(Boolean).join(" ")}
+              key={`${rowIndex}-${columns.join(":")}`}
+              onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}
+            >
               {row.map((cell, cellIndex) => (
-                <td key={`${cell}-${cellIndex}`}>{cell}</td>
+                <td key={cellIndex}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -1372,4 +1514,14 @@ function formatDate(value: string) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function compactJson(value: Record<string, unknown>) {
+  const entries = Object.entries(value).filter(([, entryValue]) => entryValue !== null && entryValue !== undefined);
+  if (entries.length === 0) {
+    return "-";
+  }
+  return entries
+    .map(([key, entryValue]) => `${key}: ${String(entryValue)}`)
+    .join(", ");
 }

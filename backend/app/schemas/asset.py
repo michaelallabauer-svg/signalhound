@@ -4,6 +4,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.asset import AssetType
+from app.schemas.finding import FindingRead
+from app.schemas.service import ServiceObservationRead, ServiceRead
 
 
 class AssetObserve(BaseModel):
@@ -47,3 +49,9 @@ class AssetObservationRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class AssetDetailRead(AssetRead):
+    observations: list[AssetObservationRead]
+    services: list[ServiceRead]
+    service_observations: list[ServiceObservationRead]
+    findings: list[FindingRead]
