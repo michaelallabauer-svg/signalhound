@@ -154,7 +154,7 @@ export function App() {
 
   useEffect(() => {
     const hasActiveAssessment = state.assessmentRuns.some((run) => ["QUEUED", "RUNNING"].includes(run.status));
-    if (activeTab !== "scanners" || selectedOrgId === null || !hasActiveAssessment) {
+    if (selectedOrgId === null || !hasActiveAssessment) {
       return undefined;
     }
 
@@ -163,7 +163,10 @@ export function App() {
     }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [activeTab, selectedOrgId, state.assessmentRuns]);
+  }, [selectedOrgId, state.assessmentRuns]);
+
+  const activeAssessment =
+    state.assessmentRuns.find((run) => ["RUNNING", "QUEUED"].includes(run.status)) ?? null;
 
   const metrics = useMemo(() => {
     const criticalFindings = state.findings.filter((finding) => finding.severity === "CRITICAL").length;
@@ -222,7 +225,7 @@ export function App() {
             );
           })}
         </nav>
-        <SidebarRunStatus activity={scannerActivity} health={state.health} />
+        <SidebarRunStatus activity={scannerActivity} assessment={activeAssessment} health={state.health} />
       </aside>
 
       <main className="workspace">
@@ -343,14 +346,36 @@ export function App() {
   );
 }
 
-function SidebarRunStatus({ activity, health }: { activity: ScannerActivity; health: string }) {
+function SidebarRunStatus({
+  activity,
+  assessment,
+  health,
+}: {
+  activity: ScannerActivity;
+  assessment: AssessmentRun | null;
+  health: string;
+}) {
+  const isBusy = activity !== null || assessment !== null;
+  const statusLabel = activity
+    ? "Scanner running"
+    : assessment?.status === "QUEUED"
+      ? "Assessment queued"
+      : assessment
+        ? "Assessment running"
+        : "System";
+
   return (
-    <div className={activity ? "sidebar-status running" : "sidebar-status"} aria-live="polite">
-      <span>{activity ? "Scanner running" : "System"}</span>
+    <div className={isBusy ? "sidebar-status running" : "sidebar-status"} aria-live="polite">
+      <span>{statusLabel}</span>
       {activity ? (
         <strong>
           #{activity.jobId} {activity.adapter}
           <small>{activity.target}</small>
+        </strong>
+      ) : assessment ? (
+        <strong>
+          #{assessment.id} {assessment.profile_name}
+          <small>{assessment.target}</small>
         </strong>
       ) : (
         <strong>
