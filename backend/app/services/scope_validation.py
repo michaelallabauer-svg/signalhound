@@ -71,7 +71,11 @@ class ScopeValidator:
 
         if scope.target_type == ScopeTargetType.CIDR:
             try:
-                return ipaddress.ip_address(normalized_target) in ipaddress.ip_network(scope.target)
+                scope_network = ipaddress.ip_network(scope.target)
+                if "/" in normalized_target:
+                    target_network = ipaddress.ip_network(normalized_target, strict=False)
+                    return target_network.subnet_of(scope_network)
+                return ipaddress.ip_address(normalized_target) in scope_network
             except ValueError:
                 return False
 
@@ -95,4 +99,3 @@ class ScopeValidator:
                 "reason": result.reason,
             },
         )
-

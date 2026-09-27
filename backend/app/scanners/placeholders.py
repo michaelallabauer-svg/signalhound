@@ -79,7 +79,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
     name = "nmap"
     display_name = "Nmap"
     binary_name = "nmap"
-    supported_target_notes = "External service discovery adapter for a single scope-approved target."
+    supported_target_notes = "Service discovery adapter for a single scope-approved host or CIDR target."
     execution_supported = True
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:

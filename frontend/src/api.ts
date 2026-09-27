@@ -13,7 +13,7 @@ export type Scope = {
   name: string;
   target_type: "DOMAIN" | "HOSTNAME" | "IP" | "CIDR";
   target: string;
-  scan_zone: "EXTERNAL";
+  scan_zone: "EXTERNAL" | "INTERNAL_IT";
   active: boolean;
 };
 
@@ -72,7 +72,7 @@ export type ScanProfile = {
   name: string;
   display_name: string;
   description: string;
-  scan_zone: "EXTERNAL";
+  scan_zone: "EXTERNAL" | "INTERNAL_IT";
   adapter_sequence: string[];
 };
 

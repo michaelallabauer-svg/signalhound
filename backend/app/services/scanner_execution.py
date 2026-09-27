@@ -12,6 +12,7 @@ from app.models.service import ServiceProtocol
 from app.repositories.assets import observe_asset
 from app.repositories.findings import observe_finding
 from app.repositories.scanner_jobs import set_scanner_job_status
+from app.repositories.scopes import get_scope
 from app.repositories.services import find_service, observe_service
 from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, ScannerAdapter
 from app.services.audit import record_audit_event
@@ -165,7 +166,7 @@ def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[
         db,
         organization_id=job.organization_id,
         target=value,
-        scan_zone=ScanZone.EXTERNAL,
+        scan_zone=_job_scan_zone(db, job),
     )
     in_scope = validation.allowed and validation.scope_id == job.scope_id
     asset, _ = observe_asset(
@@ -179,3 +180,8 @@ def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[
         metadata=dict(asset_data.get("metadata", {})),
     )
     return asset
+
+
+def _job_scan_zone(db: Session, job: ScannerJob) -> ScanZone:
+    scope = get_scope(db, job.scope_id)
+    return scope.scan_zone if scope is not None else ScanZone.EXTERNAL

@@ -25,6 +25,13 @@ SCAN_PROFILES: dict[str, ScanProfile] = {
         scan_zone="EXTERNAL",
         adapter_sequence=("amass", "nmap", "nuclei"),
     ),
+    "internal_it_quick": ScanProfile(
+        name="internal_it_quick",
+        display_name="Internal IT quick check",
+        description="Runs conservative Nmap service discovery against one explicitly scoped internal host or CIDR.",
+        scan_zone="INTERNAL_IT",
+        adapter_sequence=("nmap",),
+    ),
 }
 
 

@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.models.scope import ScanZone
 from app.repositories.organizations import get_organization
 from app.repositories.scanner_jobs import create_scanner_job, get_scanner_job, list_scanner_jobs
 from app.repositories.scopes import get_scope
@@ -34,7 +33,7 @@ def prepare(payload: ScannerJobCreate, db: Session = Depends(get_db)) -> Scanner
         db,
         organization_id=payload.organization_id,
         target=payload.target,
-        scan_zone=ScanZone.EXTERNAL,
+        scan_zone=scope.scan_zone,
     )
     if not validation.allowed or validation.scope_id != payload.scope_id:
         record_audit_event(

@@ -1,6 +1,6 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, and **Epic 10: Assessment Run Visibility**.
+SignalHound is an authorized reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, **Epic 10: Assessment Run Visibility**, and **Epic 11: Internal IT Recon Foundation**.
 
 No exploitation features are implemented.
 
@@ -18,7 +18,7 @@ No exploitation features are implemented.
 - `backend/app/core/database.py` owns SQLAlchemy engine/session setup.
 - `backend/app/core/logging.py` configures JSON application logging.
 - `backend/app/workers/celery_app.py` configures the Celery worker.
-- `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
+- `backend/app/services/scope_validation.py` enforces scope before any scanner can receive a target.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
 - `backend/app/api/findings.py` exposes normalized finding and lifecycle APIs.
 - `backend/app/api/changes.py` exposes persisted point-in-time change comparisons.
@@ -55,6 +55,8 @@ Important variables:
 - `NUCLEI_VERSION`
 
 Never commit real credentials.
+
+Scanner execution must be enabled only for infrastructure you own or are explicitly authorized to assess.
 
 ## Start the Application
 
@@ -182,6 +184,14 @@ curl -X POST http://localhost:8010/api/v1/scopes \
   -d '{"organization_id":1,"name":"Example domain","target_type":"DOMAIN","target":"example.com"}'
 ```
 
+Create an internal IT scope:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/scopes \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"name":"Office subnet","target_type":"CIDR","target":"192.168.1.0/24","scan_zone":"INTERNAL_IT"}'
+```
+
 Validate a target before scanning:
 
 ```bash
@@ -207,7 +217,8 @@ Scope target behavior:
 - `DOMAIN` authorizes the domain and its subdomains.
 - `HOSTNAME` authorizes exactly that hostname.
 - `IP` authorizes exactly that IP address.
-- `CIDR` authorizes IP addresses inside the range.
+- `CIDR` authorizes IP addresses inside the range and equal or narrower CIDR targets.
+- `EXTERNAL` and `INTERNAL_IT` scopes are separate authorization zones.
 
 ## Asset Inventory API
 
@@ -424,9 +435,17 @@ Epic 9 and 10 behavior:
 - Assessment targets are scope-validated before scanner jobs are created.
 - `external_quick` prepares and runs Nmap and Nuclei jobs.
 - `external_discovery` prepares and runs Amass, Nmap, and Nuclei jobs.
+- `internal_it_quick` prepares and runs a conservative Nmap-only internal IT service discovery job.
 - Assessment jobs execute sequentially in the Celery worker.
 - Assessment detail responses include linked scanner jobs, status, raw output, normalized results, and errors.
 - The dashboard refreshes active assessment runs while they are queued or running.
+- Assessment profiles must match the selected scope's scan zone.
+
+Internal IT behavior:
+
+- Internal scans require an explicit `INTERNAL_IT` scope.
+- Internal scans do not use Amass or Nuclei in Epic 11.
+- Credential checks, brute force, exploitation, lateral movement, OT scanning, and distributed scanner nodes are not implemented.
 
 ## Dashboard UI
 
@@ -441,10 +460,12 @@ Epic 8 behavior:
 - Organization selection and creation.
 - Overview metrics for active scopes, assets, services, findings, scanner jobs, backend health, and latest change count.
 - Scope creation and scope table.
+- External and internal IT scope zones.
 - Asset observation form and inventory tables.
 - Finding creation and finding table.
 - Scanner job preparation and run action.
 - Assessment run start form.
+- Zone-aware assessment profile selection.
 - Assessment run list with status and imported result counts.
 - Assessment detail view with linked scanner jobs, errors, and stored scanner output.
 - Change-set comparison form and change-set table.
@@ -487,3 +508,4 @@ Implemented:
 - Basic security dashboard UI
 - Profile-based assessment run automation
 - Assessment detail view with linked scanner output
+- Internal IT scope validation and Nmap-only assessment profile

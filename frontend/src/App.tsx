@@ -415,7 +415,7 @@ function ScopesTab({
   scopes: Scope[];
   onCreate: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
-  const [form, setForm] = useState({ name: "", target_type: "DOMAIN", target: "" });
+  const [form, setForm] = useState({ name: "", target_type: "DOMAIN", target: "", scan_zone: "EXTERNAL" });
   return (
     <section className="stack">
       <section className="panel">
@@ -425,7 +425,7 @@ function ScopesTab({
           onSubmit={(event) => {
             event.preventDefault();
             void onCreate({ organization_id: organizationId, ...form });
-            setForm({ name: "", target_type: "DOMAIN", target: "" });
+            setForm({ name: "", target_type: "DOMAIN", target: "", scan_zone: "EXTERNAL" });
           }}
         >
           <Field label="Name">
@@ -441,6 +441,12 @@ function ScopesTab({
           </Field>
           <Field label="Target">
             <input required value={form.target} onChange={(event) => setForm({ ...form, target: event.target.value })} />
+          </Field>
+          <Field label="Zone">
+            <select value={form.scan_zone} onChange={(event) => setForm({ ...form, scan_zone: event.target.value })}>
+              <option value="EXTERNAL">EXTERNAL</option>
+              <option value="INTERNAL_IT">INTERNAL_IT</option>
+            </select>
           </Field>
           <button type="submit">
             <Plus size={16} />
@@ -680,6 +686,25 @@ function ScannersTab({
   const [assessmentDetailError, setAssessmentDetailError] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
+  const activeScopes = useMemo(() => scopes.filter((scope) => scope.active), [scopes]);
+  const selectedAssessmentScope =
+    activeScopes.find((scope) => String(scope.id) === assessmentForm.scope_id) ?? null;
+  const availableProfiles = useMemo(
+    () =>
+      selectedAssessmentScope
+        ? profiles.filter((profile) => profile.scan_zone === selectedAssessmentScope.scan_zone)
+        : profiles,
+    [profiles, selectedAssessmentScope],
+  );
+
+  useEffect(() => {
+    if (availableProfiles.length === 0) {
+      return;
+    }
+    if (!availableProfiles.some((profile) => profile.name === assessmentForm.profile_name)) {
+      setAssessmentForm((current) => ({ ...current, profile_name: availableProfiles[0].name }));
+    }
+  }, [availableProfiles, assessmentForm.profile_name]);
 
   useEffect(() => {
     if (assessmentRuns.length === 0) {
@@ -747,10 +772,11 @@ function ScannersTab({
           className="form-grid"
           onSubmit={(event) => {
             event.preventDefault();
+            const selectedProfile = availableProfiles.find((profile) => profile.name === assessmentForm.profile_name);
             void onCreateAssessment({
               organization_id: organizationId,
               scope_id: Number(assessmentForm.scope_id),
-              profile_name: assessmentForm.profile_name,
+              profile_name: selectedProfile?.name ?? assessmentForm.profile_name,
               target: assessmentForm.target,
             });
             setAssessmentForm({ scope_id: "", profile_name: "external_quick", target: "" });
@@ -761,7 +787,7 @@ function ScannersTab({
               value={assessmentForm.profile_name}
               onChange={(event) => setAssessmentForm({ ...assessmentForm, profile_name: event.target.value })}
             >
-              {profiles.map((profile) => (
+              {availableProfiles.map((profile) => (
                 <option key={profile.name} value={profile.name}>
                   {profile.display_name}
                 </option>
@@ -775,13 +801,11 @@ function ScannersTab({
               onChange={(event) => setAssessmentForm({ ...assessmentForm, scope_id: event.target.value })}
             >
               <option value="">Select scope</option>
-              {scopes
-                .filter((scope) => scope.active)
-                .map((scope) => (
-                  <option key={scope.id} value={scope.id}>
-                    {scope.name}
-                  </option>
-                ))}
+              {activeScopes.map((scope) => (
+                <option key={scope.id} value={scope.id}>
+                  {scope.name} ({scope.scan_zone})
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Target">
@@ -824,13 +848,11 @@ function ScannersTab({
           <Field label="Scope">
             <select required value={form.scope_id} onChange={(event) => setForm({ ...form, scope_id: event.target.value })}>
               <option value="">Select scope</option>
-              {scopes
-                .filter((scope) => scope.active)
-                .map((scope) => (
-                  <option key={scope.id} value={scope.id}>
-                    {scope.name}
-                  </option>
-                ))}
+              {activeScopes.map((scope) => (
+                <option key={scope.id} value={scope.id}>
+                  {scope.name} ({scope.scan_zone})
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Target">

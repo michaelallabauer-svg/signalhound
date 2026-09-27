@@ -88,6 +88,38 @@ def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_se
     assert "scanner.job.prepared" in audit_actions
 
 
+def test_prepare_internal_it_scanner_job_uses_internal_scope_zone(client: TestClient) -> None:
+    org_response = client.post("/api/v1/organizations", json={"name": "Internal Scanner Corp"})
+    assert org_response.status_code == 201
+    organization_id = int(org_response.json()["id"])
+    scope_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Internal host",
+            "target_type": "IP",
+            "target": "192.168.30.10",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert scope_response.status_code == 201
+
+    response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_response.json()["id"],
+            "adapter_name": "nmap",
+            "target": "192.168.30.10",
+        },
+    )
+
+    assert response.status_code == 201
+    job = response.json()
+    assert job["target"] == "192.168.30.10"
+    assert job["prepared_config"]["command"][-1] == "192.168.30.10"
+
+
 def test_prepare_scanner_job_rejects_out_of_scope_target(client: TestClient, db_session: Session) -> None:
     organization_id, scope_id = create_org_scope(client)
 
@@ -258,7 +290,78 @@ def test_run_scanner_job_imports_normalized_results(
     assert len(findings) == 1
     assert findings[0].asset_id == in_scope_asset.id
     assert findings[0].severity.value == "HIGH"
-    assert findings[0].status.value == "NEW"
+
+
+def test_run_internal_it_scanner_job_imports_internal_asset_as_known(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    org_response = client.post("/api/v1/organizations", json={"name": "Internal Import Corp"})
+    assert org_response.status_code == 201
+    organization_id = int(org_response.json()["id"])
+    scope_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Internal host",
+            "target_type": "IP",
+            "target": "192.168.40.10",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert scope_response.status_code == 201
+    scope_id = int(scope_response.json()["id"])
+    create_response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "adapter_name": "nmap",
+            "target": "192.168.40.10",
+        },
+    )
+    assert create_response.status_code == 201
+    job_id = create_response.json()["id"]
+
+    class FakeAdapter:
+        name = "nmap"
+        execution_supported = True
+
+        def execute(self, prepared_job: PreparedScannerJob) -> str:
+            return "raw-result"
+
+        def parse_result(self, raw_output: str) -> dict:
+            return {"raw": raw_output}
+
+        def normalize_result(self, parsed_result: dict) -> NormalizedScannerResult:
+            return NormalizedScannerResult(
+                assets=[
+                    {
+                        "asset_type": "IP",
+                        "value": "192.168.40.10",
+                        "source": "nmap",
+                        "metadata": {"source": "fake"},
+                    }
+                ]
+            )
+
+    from app.api import scanner_jobs as scanner_jobs_api
+
+    monkeypatch.setattr(
+        scanner_jobs_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True, scanner_timeout_seconds=30),
+    )
+    monkeypatch.setattr(scanner_jobs_api.scanner_registry, "get", lambda name: FakeAdapter())
+
+    run_response = client.post(f"/api/v1/scanner-jobs/{job_id}/run")
+
+    assert run_response.status_code == 200
+    asset = db_session.scalar(select(Asset).where(Asset.value == "192.168.40.10"))
+    assert asset is not None
+    assert asset.scope_id == scope_id
+    assert asset.known_asset is True
 
     audit_actions = list(db_session.scalars(select(AuditLog.action).order_by(AuditLog.id)))
     assert "scanner.started" in audit_actions

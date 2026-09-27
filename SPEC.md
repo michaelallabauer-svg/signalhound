@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, and **Epic 10: Assessment Run Visibility**.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, **Epic 10: Assessment Run Visibility**, and **Epic 11: Internal IT Recon Foundation**.
 
 ## Epic 1 Deliverables
 
@@ -123,6 +123,19 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Per-assessment job status, error, and output visibility
 - Automatic dashboard refresh while assessment runs are queued or running
 - Stored scanner output can be opened from the assessment detail view
+
+## Epic 11 Deliverables
+
+- Operational `INTERNAL_IT` scan zone for explicitly authorized internal IT scopes
+- Internal host, IP, and CIDR scope validation
+- CIDR scope validation for both individual IP targets and scoped CIDR targets
+- Internal quick assessment profile using conservative Nmap service discovery only
+- Scanner-job preparation uses the selected scope's scan zone instead of assuming external scans
+- Scanner result import preserves internal in-scope assets as known assets
+- Dashboard scope creation supports `EXTERNAL` and `INTERNAL_IT`
+- Dashboard assessment profile selection is filtered by the selected scope zone
+
+Epic 11 does not implement credential checks, brute force, exploit execution, lateral movement, internal OT reconnaissance, or distributed scanner nodes.
 
 ## Security Boundary
 

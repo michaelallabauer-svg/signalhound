@@ -44,14 +44,15 @@ def create(payload: AssessmentRunCreate, db: Session = Depends(get_db)) -> Asses
     profile = get_scan_profile(payload.profile_name)
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan profile not found")
-    if profile.scan_zone != ScanZone.EXTERNAL.value:
-        raise HTTPException(status_code=422, detail="Only EXTERNAL scan profiles are implemented")
+    profile_scan_zone = ScanZone(profile.scan_zone)
+    if profile_scan_zone != scope.scan_zone:
+        raise HTTPException(status_code=422, detail="Scan profile zone does not match scope zone")
 
     validation = ScopeValidator().validate(
         db,
         organization_id=payload.organization_id,
         target=payload.target,
-        scan_zone=ScanZone.EXTERNAL,
+        scan_zone=profile_scan_zone,
     )
     if not validation.allowed or validation.scope_id != payload.scope_id:
         record_audit_event(

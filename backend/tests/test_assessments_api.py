@@ -32,6 +32,8 @@ def test_scan_profiles_are_listed(client: TestClient) -> None:
     profiles = {profile["name"]: profile for profile in response.json()}
     assert profiles["external_quick"]["adapter_sequence"] == ["nmap", "nuclei"]
     assert profiles["external_discovery"]["adapter_sequence"] == ["amass", "nmap", "nuclei"]
+    assert profiles["internal_it_quick"]["scan_zone"] == "INTERNAL_IT"
+    assert profiles["internal_it_quick"]["adapter_sequence"] == ["nmap"]
 
 
 def test_create_assessment_prepares_jobs_and_enqueues(
@@ -106,3 +108,82 @@ def test_create_assessment_rejects_out_of_scope_target(
     )
 
     assert response.status_code == 403
+
+
+def test_create_internal_it_assessment_prepares_nmap_job(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    enqueued: list[int] = []
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    monkeypatch.setattr(assessments_api, "enqueue_assessment_run", lambda run_id: enqueued.append(run_id))
+
+    org_response = client.post("/api/v1/organizations", json={"name": "Internal Assessment Corp"})
+    assert org_response.status_code == 201
+    organization_id = int(org_response.json()["id"])
+    scope_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Internal subnet",
+            "target_type": "CIDR",
+            "target": "192.168.20.0/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert scope_response.status_code == 201
+    scope_id = int(scope_response.json()["id"])
+
+    response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "internal_it_quick",
+            "target": "192.168.20.0/24",
+        },
+    )
+
+    assert response.status_code == 201
+    run = response.json()
+    assert run["status"] == "QUEUED"
+    assert run["summary"]["adapters"] == ["nmap"]
+    assert enqueued == [run["id"]]
+
+    jobs = db_session.query(ScannerJob).order_by(ScannerJob.id).all()
+    assert [job.adapter_name for job in jobs] == ["nmap"]
+    assert jobs[0].target == "192.168.20.0/24"
+
+
+def test_create_assessment_rejects_profile_scope_zone_mismatch(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    organization_id, scope_id = create_org_scope(client)
+
+    response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "internal_it_quick",
+            "target": "www.example.com",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "zone" in response.json()["detail"]

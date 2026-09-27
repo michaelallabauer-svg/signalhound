@@ -16,6 +16,7 @@ class ScopeTargetType(str, enum.Enum):
 
 class ScanZone(str, enum.Enum):
     EXTERNAL = "EXTERNAL"
+    INTERNAL_IT = "INTERNAL_IT"
 
 
 class Scope(Base):
@@ -61,4 +62,3 @@ class Scope(Base):
     )
 
     organization: Mapped["Organization"] = relationship(back_populates="scopes")
-

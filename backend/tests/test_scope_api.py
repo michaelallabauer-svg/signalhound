@@ -94,6 +94,52 @@ def test_cidr_scope_allows_contained_ip_only(client: TestClient) -> None:
     assert denied_response.json()["allowed"] is False
 
 
+def test_internal_it_cidr_scope_allows_network_target(client: TestClient) -> None:
+    organization_id = create_organization(client)
+
+    create_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Internal subnet",
+            "target_type": "CIDR",
+            "target": "192.168.10.0/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert create_response.status_code == 201
+    assert create_response.json()["scan_zone"] == "INTERNAL_IT"
+
+    network_response = client.post(
+        "/api/v1/scopes/validate",
+        json={
+            "organization_id": organization_id,
+            "target": "192.168.10.0/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    host_response = client.post(
+        "/api/v1/scopes/validate",
+        json={
+            "organization_id": organization_id,
+            "target": "192.168.10.42",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    external_zone_response = client.post(
+        "/api/v1/scopes/validate",
+        json={
+            "organization_id": organization_id,
+            "target": "192.168.10.42",
+            "scan_zone": "EXTERNAL",
+        },
+    )
+
+    assert network_response.json()["allowed"] is True
+    assert host_response.json()["allowed"] is True
+    assert external_zone_response.json()["allowed"] is False
+
+
 def test_hostname_scope_does_not_authorize_parent_or_sibling(client: TestClient) -> None:
     organization_id = create_organization(client)
 
