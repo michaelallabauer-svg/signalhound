@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, and **Epic 6: Finding Normalization and Management**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, and **Epic 7: Change Detection**.
 
-No change detection, exploitation features, or frontend are implemented yet.
+No exploitation features or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -21,6 +21,7 @@ No change detection, exploitation features, or frontend are implemented yet.
 - `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
 - `backend/app/api/findings.py` exposes normalized finding and lifecycle APIs.
+- `backend/app/api/changes.py` exposes persisted point-in-time change comparisons.
 - `backend/app/scanners/` contains the scanner adapter contract and registry.
 - `backend/app/api/scanner_jobs.py` prepares scanner jobs only after scope validation.
 - `backend/alembic/` contains the Alembic migration framework.
@@ -319,6 +320,43 @@ Finding behavior:
 - Status changes are explicit API actions and are auditable.
 - Nuclei findings are imported through scanner jobs when scanner execution is enabled.
 
+## Change Detection API
+
+Create a persisted comparison between two points in time:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/change-sets/compare \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"baseline_at":"2026-01-01T12:00:00Z","comparison_at":"2026-01-02T12:00:00Z"}'
+```
+
+List stored comparisons:
+
+```bash
+curl http://localhost:8010/api/v1/change-sets?organization_id=1
+```
+
+View a comparison with events:
+
+```bash
+curl http://localhost:8010/api/v1/change-sets/1
+```
+
+View only events:
+
+```bash
+curl http://localhost:8010/api/v1/change-sets/1/events
+```
+
+Epic 7 behavior:
+
+- Change sets store the requested baseline and comparison timestamps.
+- Change events are stored for assets, services, and findings.
+- Added and removed objects are detected from the existing historized inventory fields.
+- Findings are considered removed when they are terminal at the comparison point (`RESOLVED` or `FALSE_POSITIVE`).
+- Change-set creation is audited.
+- No frontend, management scoring, or future dashboard behavior is implemented.
+
 ## Implemented Scope
 
 Implemented:
@@ -349,8 +387,10 @@ Implemented:
 - Finding inventory and lifecycle management
 - Nuclei finding normalization
 - Finding observation history
+- Point-in-time change-set comparisons
+- Asset, service, and finding change events
+- Change detection audit events
 
 Deferred to later epics:
 
-- Change detection
 - Frontend
