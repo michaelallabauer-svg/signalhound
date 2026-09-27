@@ -627,21 +627,29 @@ function ScannersTab({
       </section>
       <section className="panel">
         <PanelHeader title="Scanner jobs" />
-        <table>
+        <table className="scanner-jobs-table">
           <thead>
             <tr>
               <th>Adapter</th>
               <th>Target</th>
               <th>Status</th>
+              <th>Detail</th>
               <th>Run</th>
             </tr>
           </thead>
           <tbody>
             {jobs.map((job) => (
-              <tr key={job.id}>
+              <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
                 <td>{job.adapter_name}</td>
                 <td>{job.target}</td>
-                <td>{runningJobId === job.id ? "RUNNING..." : job.status}</td>
+                <td>
+                  <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
+                </td>
+                <td className="job-detail">
+                  {runningJobId === job.id
+                    ? "Scanner is running. Results will refresh when it finishes."
+                    : formatJobDetail(job)}
+                </td>
                 <td>
                   <button
                     className="run-button"
@@ -662,6 +670,39 @@ function ScannersTab({
       </section>
     </section>
   );
+}
+
+function StatusPill({ status }: { status: ScannerJob["status"] | "RUNNING" }) {
+  return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
+}
+
+function summarizeJob(job: ScannerJob) {
+  if (job.status === "COMPLETED") {
+    return "Completed successfully";
+  }
+  if (job.status === "PREPARED") {
+    return "Ready to run";
+  }
+  if (job.status === "RUNNING") {
+    return "Scanner is running";
+  }
+  if (job.status === "CANCELLED") {
+    return "Cancelled";
+  }
+  return "-";
+}
+
+function formatJobDetail(job: ScannerJob) {
+  if (!job.error_message) {
+    return summarizeJob(job);
+  }
+
+  const timeoutMatch = job.error_message.match(/Command .* timed out after (\d+) seconds/);
+  if (timeoutMatch) {
+    return `${job.adapter_name} timed out after ${timeoutMatch[1]} seconds for ${job.target}`;
+  }
+
+  return job.error_message;
 }
 
 function ChangesTab({

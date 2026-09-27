@@ -196,6 +196,70 @@ th {
   padding: 0 10px;
 }
 
+.scanner-jobs-table {
+  table-layout: fixed;
+}
+
+.scanner-jobs-table th:nth-child(1),
+.scanner-jobs-table td:nth-child(1) {
+  width: 90px;
+}
+
+.scanner-jobs-table th:nth-child(3),
+.scanner-jobs-table td:nth-child(3) {
+  width: 130px;
+}
+
+.scanner-jobs-table th:nth-child(5),
+.scanner-jobs-table td:nth-child(5) {
+  width: 90px;
+}
+
+.job-detail {
+  color: #4d5a55;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.failed-row .job-detail {
+  color: #8f2e24;
+  font-weight: 700;
+}
+
+.status-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
+.status-prepared {
+  background: #edf1ef;
+  color: #45514c;
+}
+
+.status-running {
+  background: #eef5ff;
+  color: #264d78;
+}
+
+.status-completed {
+  background: #e7f4ee;
+  color: #175444;
+}
+
+.status-failed {
+  background: #fff0ed;
+  color: #8f2e24;
+}
+
+.status-cancelled {
+  background: #f2ece3;
+  color: #765428;
+}
+
 .stack {
   display: grid;
   gap: 18px;

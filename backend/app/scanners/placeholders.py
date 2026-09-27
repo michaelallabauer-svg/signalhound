@@ -20,13 +20,19 @@ class ExternalToolScannerAdapter(ScannerAdapter):
             raise FileNotFoundError(f"Required scanner binary not found: {prepared_job.command[0]}")
 
         command = [binary_path, *prepared_job.command[1:]]
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=prepared_job.timeout_seconds,
-        )
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=prepared_job.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"{prepared_job.adapter_name} scan timed out after {prepared_job.timeout_seconds} seconds for "
+                f"{prepared_job.target}"
+            ) from exc
         if completed.returncode != 0:
             stderr = completed.stderr.strip()
             raise RuntimeError(stderr or f"Scanner exited with code {completed.returncode}")
