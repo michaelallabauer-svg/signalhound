@@ -1,3 +1,4 @@
+from app.scanners.base import ScannerTarget
 from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter
 
 
@@ -90,3 +91,34 @@ def test_nuclei_adapter_parses_findings() -> None:
             },
         }
     ]
+
+
+def test_nuclei_adapter_prepares_bounded_web_profile() -> None:
+    adapter = NucleiAdapter()
+    prepared = adapter.prepare_job(ScannerTarget(value="www.example.com", scope_id=1, organization_id=1))
+
+    assert prepared.command[0] == "nuclei"
+    assert prepared.config["profile"] == "web_finding_discovery"
+    assert prepared.config["command"] == prepared.command
+    assert "-target" in prepared.command
+    assert "http://www.example.com" in prepared.command
+    assert "http/technologies/php-detect.yaml" in prepared.command
+    assert "http/technologies/wordpress-detect.yaml" in prepared.command
+    assert "http/exposed-panels/wordpress-login.yaml" in prepared.command
+    assert "-disable-update-check" in prepared.command
+    assert "-ni" in prepared.command
+    assert "-concurrency" in prepared.command
+    assert "-rate-limit" in prepared.command
+
+
+def test_nuclei_adapter_ignores_log_lines_when_parsing_jsonl() -> None:
+    raw_output = """
+    [INF] Scan completed in 1s. No results found.
+    {"template-id":"wordpress-detect","matched-at":"https://www.example.com","host":"https://www.example.com","type":"http","info":{"name":"WordPress Detect","severity":"info"}}
+    """
+
+    adapter = NucleiAdapter()
+    parsed = adapter.parse_result(raw_output)
+
+    assert len(parsed) == 1
+    assert parsed[0]["template-id"] == "wordpress-detect"

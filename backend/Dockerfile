@@ -23,6 +23,7 @@ RUN set -eux; \
     curl -fsSL "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${scanner_arch}.zip" -o /tmp/nuclei.zip; \
     unzip -q /tmp/nuclei.zip -d /tmp/nuclei; \
     install -m 0755 /tmp/nuclei/nuclei /usr/local/bin/nuclei; \
+    nuclei -update-templates -update-template-dir /root/nuclei-templates; \
     apt-get clean; \
     find /tmp -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
     rm -rf /var/lib/apt/lists/*

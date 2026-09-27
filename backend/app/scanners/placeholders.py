@@ -10,6 +10,7 @@ from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, Scann
 class ExternalToolScannerAdapter(ScannerAdapter):
     binary_name: str
     execution_supported = True
+    return_stderr_when_stdout_empty = False
 
     def execute(self, prepared_job: PreparedScannerJob) -> str:
         if not prepared_job.command:
@@ -36,7 +37,9 @@ class ExternalToolScannerAdapter(ScannerAdapter):
         if completed.returncode != 0:
             stderr = completed.stderr.strip()
             raise RuntimeError(stderr or f"Scanner exited with code {completed.returncode}")
-        return completed.stdout
+        if completed.stdout or not self.return_stderr_when_stdout_empty:
+            return completed.stdout
+        return completed.stderr
 
 
 class PlaceholderScannerAdapter(ScannerAdapter):
@@ -232,10 +235,41 @@ class NucleiAdapter(PlaceholderScannerAdapter):
     binary_name = "nuclei"
     supported_target_notes = "External finding discovery adapter for a single scope-approved target."
     execution_supported = True
+    return_stderr_when_stdout_empty = True
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)
-        command = ["nuclei", "-jsonl", "-target", target.value]
+        target_url = f"http://{target.value}"
+        command = [
+            "nuclei",
+            "-jsonl",
+            "-no-color",
+            "-disable-update-check",
+            "-ni",
+            "-follow-redirects",
+            "-max-redirects",
+            "3",
+            "-target",
+            target_url,
+            "-templates",
+            "http/technologies/php-detect.yaml",
+            "-templates",
+            "http/technologies/wordpress-detect.yaml",
+            "-templates",
+            "http/technologies/default-apache-miracle.yaml",
+            "-templates",
+            "http/exposed-panels/wordpress-login.yaml",
+            "-templates",
+            "http/misconfiguration/xss-deprecated-header.yaml",
+            "-timeout",
+            "8",
+            "-retries",
+            "1",
+            "-concurrency",
+            "5",
+            "-rate-limit",
+            "10",
+        ]
         return PreparedScannerJob(
             adapter_name=self.name,
             target=target.value,
@@ -247,6 +281,7 @@ class NucleiAdapter(PlaceholderScannerAdapter):
                 "organization_id": target.organization_id,
                 "command": command,
                 "output_format": "jsonl",
+                "profile": "web_finding_discovery",
             },
         )
 
@@ -256,7 +291,7 @@ class NucleiAdapter(PlaceholderScannerAdapter):
     def parse_result(self, raw_output: str) -> Any:
         records = []
         for line in raw_output.splitlines():
-            if line.strip():
+            if line.strip().startswith("{"):
                 records.append(json.loads(line))
         return records
 
