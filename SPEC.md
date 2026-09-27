@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation** and **Epic 2: Scope Management and Scope Enforcement**. Later epics may add inventory, scanner adapters, external discovery, findings, change detection, and a UI.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, and **Epic 3: Asset Inventory and Historization**. Later epics may add scanner adapters, external discovery, findings, change detection, and a UI.
 
 ## Epic 1 Deliverables
 
@@ -32,6 +32,19 @@ The current implementation covers **Epic 1: Foundation** and **Epic 2: Scope Man
 - Audit events for scope creation, change, soft deletion, and validation decisions
 - API endpoints under `/api/v1`
 
+## Epic 3 Deliverables
+
+- Asset records scoped to organizations
+- Optional scope linkage for authorized known assets
+- Unscoped discovered/unverified assets
+- Asset types: `DOMAIN`, `SUBDOMAIN`, `IP`, `HOST`
+- Service records attached to assets
+- Service protocols: `TCP`, `UDP`
+- `first_seen` and `last_seen` tracking
+- Asset and service observation history tables
+- API endpoints for inventory and observation history
+- Tests proving repeated observations preserve history instead of overwriting it
+
 ## Security Boundary
 
-SignalHound is intended only for authorized security assessments. Epic 1 implements no scanning, exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.
+SignalHound is intended only for authorized security assessments. The current implementation performs no scanning, exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.

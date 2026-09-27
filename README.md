@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation** and **Epic 2: Scope Management and Scope Enforcement**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, and **Epic 3: Asset Inventory and Historization**.
 
-No scanner integrations, asset inventory, finding workflows, exploitation features, or frontend are implemented yet.
+No scanner integrations, finding workflows, exploitation features, change detection, or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -19,6 +19,7 @@ No scanner integrations, asset inventory, finding workflows, exploitation featur
 - `backend/app/core/logging.py` configures JSON application logging.
 - `backend/app/workers/celery_app.py` configures the Celery worker.
 - `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
+- `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
 - `backend/alembic/` contains the Alembic migration framework.
 - `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, and Celery.
 
@@ -175,6 +176,50 @@ Scope target behavior:
 - `IP` authorizes exactly that IP address.
 - `CIDR` authorizes IP addresses inside the range.
 
+## Asset Inventory API
+
+Record or refresh an asset observation:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/assets \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"scope_id":1,"asset_type":"SUBDOMAIN","value":"www.example.com","source":"manual"}'
+```
+
+List assets:
+
+```bash
+curl http://localhost:8010/api/v1/assets?organization_id=1
+```
+
+View asset observation history:
+
+```bash
+curl http://localhost:8010/api/v1/assets/1/observations
+```
+
+Record or refresh a service observation:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/services \
+  -H "Content-Type: application/json" \
+  -d '{"asset_id":1,"protocol":"TCP","port":443,"name":"https","source":"manual"}'
+```
+
+View service observation history:
+
+```bash
+curl http://localhost:8010/api/v1/services/1/observations
+```
+
+Historization behavior:
+
+- Re-observing an existing asset updates `last_seen` and creates a new `asset_observations` row.
+- Re-observing an existing service updates `last_seen` and creates a new `service_observations` row.
+- `first_seen` is preserved.
+- Assets may be recorded without a `scope_id` as discovered/unverified inventory, but scoped assets must pass scope validation.
+- No inactive records or historical observations are deleted when an asset or service is marked inactive.
+
 ## Implemented Scope
 
 Implemented:
@@ -195,10 +240,12 @@ Implemented:
 - Scope management
 - Scope validation
 - Scope audit events
+- Asset inventory
+- Service inventory
+- Asset and service observation history
 
 Deferred to later epics:
 
-- Asset inventory
 - Scanner adapters
 - External discovery
 - Finding management
