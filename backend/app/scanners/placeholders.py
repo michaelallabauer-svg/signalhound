@@ -127,6 +127,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
     def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:
         assets: list[dict[str, Any]] = []
         services: list[dict[str, Any]] = []
+        require_open_service = _is_private_cidr_nmaprun(parsed_result)
 
         for host in parsed_result.findall("host"):
             address = host.find("address")
@@ -168,6 +169,8 @@ class NmapAdapter(PlaceholderScannerAdapter):
             status_reason = status.attrib.get("reason") if status is not None else None
             if status_state != "up":
                 continue
+            if require_open_service and not host_services:
+                continue
             if status_reason in {"user-set", "unknown-response"} and not host_services:
                 continue
 
@@ -192,6 +195,17 @@ def _is_private_ip_target(value: str) -> bool:
         return ipaddress.ip_address(value).is_private
     except ValueError:
         return False
+
+
+def _is_private_cidr_nmaprun(parsed_result: Any) -> bool:
+    args = str(parsed_result.attrib.get("args", ""))
+    for token in args.split():
+        try:
+            if "/" in token and ipaddress.ip_network(token, strict=False).is_private:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 class AmassAdapter(PlaceholderScannerAdapter):

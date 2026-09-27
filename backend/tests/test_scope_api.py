@@ -140,6 +140,36 @@ def test_internal_it_cidr_scope_allows_network_target(client: TestClient) -> Non
     assert external_zone_response.json()["allowed"] is False
 
 
+def test_cidr_scope_normalizes_host_address_network_target(client: TestClient) -> None:
+    organization_id = create_organization(client)
+
+    create_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Home LAN",
+            "target_type": "CIDR",
+            "target": "192.168.0.1/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert create_response.status_code == 201
+    assert create_response.json()["target"] == "192.168.0.0/24"
+
+    validation_response = client.post(
+        "/api/v1/scopes/validate",
+        json={
+            "organization_id": organization_id,
+            "target": "192.168.0.1/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+
+    assert validation_response.status_code == 200
+    assert validation_response.json()["allowed"] is True
+    assert validation_response.json()["normalized_target"] == "192.168.0.0/24"
+
+
 def test_hostname_scope_does_not_authorize_parent_or_sibling(client: TestClient) -> None:
     organization_id = create_organization(client)
 

@@ -118,6 +118,38 @@ def test_nmap_adapter_ignores_unknown_response_hosts_without_open_services() -> 
     assert [service["asset_value"] for service in normalized.services] == ["192.168.1.43"]
 
 
+def test_nmap_adapter_requires_open_service_for_private_cidr_hosts() -> None:
+    raw_output = """
+    <nmaprun args="/usr/bin/nmap -oX - -n -p 80,443 192.168.0.0/24">
+      <host>
+        <status state="up" reason="reset"/>
+        <address addr="192.168.0.42" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="closed"/>
+          </port>
+        </ports>
+      </host>
+      <host>
+        <status state="up" reason="syn-ack"/>
+        <address addr="192.168.0.43" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="open"/>
+            <service name="https"/>
+          </port>
+        </ports>
+      </host>
+    </nmaprun>
+    """
+
+    adapter = NmapAdapter()
+    normalized = adapter.normalize_result(adapter.parse_result(raw_output))
+
+    assert [asset["value"] for asset in normalized.assets] == ["192.168.0.43"]
+    assert [service["asset_value"] for service in normalized.services] == ["192.168.0.43"]
+
+
 def test_amass_adapter_parses_json_lines() -> None:
     raw_output = """
     {"name":"www.example.com","domain":"example.com","addresses":[{"ip":"203.0.113.10"}],"tag":"api"}

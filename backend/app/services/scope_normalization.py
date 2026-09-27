@@ -12,5 +12,15 @@ def normalize_target(target: str, target_type: ScopeTargetType | None = None) ->
     if target_type == ScopeTargetType.CIDR:
         return str(ipaddress.ip_network(value, strict=False))
 
-    return value
+    if "/" in value:
+        try:
+            return str(ipaddress.ip_network(value, strict=False))
+        except ValueError:
+            return value
 
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        pass
+
+    return value

@@ -851,6 +851,24 @@ function ScannersTab({
     }
   }
 
+  function updateAssessmentScope(scopeId: string) {
+    const scope = activeScopes.find((candidate) => String(candidate.id) === scopeId);
+    setAssessmentForm((current) => ({
+      ...current,
+      scope_id: scopeId,
+      target: scope?.target ?? current.target,
+    }));
+  }
+
+  function updateScannerJobScope(scopeId: string) {
+    const scope = activeScopes.find((candidate) => String(candidate.id) === scopeId);
+    setForm((current) => ({
+      ...current,
+      scope_id: scopeId,
+      target: scope?.target ?? current.target,
+    }));
+  }
+
   return (
     <section className="stack">
       <section className="panel">
@@ -885,12 +903,12 @@ function ScannersTab({
             <select
               required
               value={assessmentForm.scope_id}
-              onChange={(event) => setAssessmentForm({ ...assessmentForm, scope_id: event.target.value })}
+              onChange={(event) => updateAssessmentScope(event.target.value)}
             >
               <option value="">Select scope</option>
               {activeScopes.map((scope) => (
                 <option key={scope.id} value={scope.id}>
-                  {scope.name} ({scope.scan_zone})
+                  {scope.name} ({scope.target}, {scope.scan_zone})
                 </option>
               ))}
             </select>
@@ -933,11 +951,11 @@ function ScannersTab({
             </select>
           </Field>
           <Field label="Scope">
-            <select required value={form.scope_id} onChange={(event) => setForm({ ...form, scope_id: event.target.value })}>
+            <select required value={form.scope_id} onChange={(event) => updateScannerJobScope(event.target.value)}>
               <option value="">Select scope</option>
               {activeScopes.map((scope) => (
                 <option key={scope.id} value={scope.id}>
-                  {scope.name} ({scope.scan_zone})
+                  {scope.name} ({scope.target}, {scope.scan_zone})
                 </option>
               ))}
             </select>
