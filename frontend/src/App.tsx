@@ -22,9 +22,9 @@ type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "chan
 const tabs: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
   { id: "scopes", label: "Scopes", icon: Crosshair },
+  { id: "scanners", label: "Scanners", icon: Radar },
   { id: "inventory", label: "Inventory", icon: Database },
   { id: "findings", label: "Findings", icon: AlertTriangle },
-  { id: "scanners", label: "Scanners", icon: Radar },
   { id: "changes", label: "Changes", icon: GitCompare },
 ];
 
