@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation** only.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation** and **Epic 2: Scope Management and Scope Enforcement**.
 
-No scanner integrations, scope management, asset inventory, finding workflows, exploitation features, or frontend are implemented in this epic.
+No scanner integrations, asset inventory, finding workflows, exploitation features, or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -18,6 +18,7 @@ No scanner integrations, scope management, asset inventory, finding workflows, e
 - `backend/app/core/database.py` owns SQLAlchemy engine/session setup.
 - `backend/app/core/logging.py` configures JSON application logging.
 - `backend/app/workers/celery_app.py` configures the Celery worker.
+- `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
 - `backend/alembic/` contains the Alembic migration framework.
 - `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, and Celery.
 
@@ -129,7 +130,52 @@ docker compose logs -f worker
 docker compose down
 ```
 
-## Epic 1 Scope
+## Scope Management API
+
+Create an organization:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/organizations \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Example Corp"}'
+```
+
+Create an external scope:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/scopes \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"name":"Example domain","target_type":"DOMAIN","target":"example.com"}'
+```
+
+Validate a target before scanning:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/scopes/validate \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"target":"www.example.com"}'
+```
+
+Expected allowed response:
+
+```json
+{
+  "target": "www.example.com",
+  "normalized_target": "www.example.com",
+  "allowed": true,
+  "scope_id": 1,
+  "reason": "target matched active scope"
+}
+```
+
+Scope target behavior:
+
+- `DOMAIN` authorizes the domain and its subdomains.
+- `HOSTNAME` authorizes exactly that hostname.
+- `IP` authorizes exactly that IP address.
+- `CIDR` authorizes IP addresses inside the range.
+
+## Implemented Scope
 
 Implemented:
 
@@ -145,11 +191,13 @@ Implemented:
 - JSON logging
 - `GET /health`
 - pytest setup
+- Organization management
+- Scope management
+- Scope validation
+- Scope audit events
 
 Deferred to later epics:
 
-- Scope management
-- Scope enforcement
 - Asset inventory
 - Scanner adapters
 - External discovery
