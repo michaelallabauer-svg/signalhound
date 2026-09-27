@@ -31,7 +31,7 @@ def test_nmap_adapter_parses_open_services() -> None:
             "asset_type": "IP",
             "value": "203.0.113.10",
             "source": "nmap",
-            "metadata": {"addrtype": "ipv4"},
+            "metadata": {"addrtype": "ipv4", "status_reason": None},
         }
     ]
     assert normalized.services == [
@@ -45,6 +45,45 @@ def test_nmap_adapter_parses_open_services() -> None:
             "metadata": {"product": "nginx", "version": "1.25"},
         }
     ]
+
+
+def test_nmap_adapter_keeps_external_pn_but_uses_discovery_for_private_targets() -> None:
+    adapter = NmapAdapter()
+
+    external = adapter.prepare_job(ScannerTarget(value="www.example.com", scope_id=1, organization_id=1))
+    internal = adapter.prepare_job(ScannerTarget(value="192.168.1.0/24", scope_id=1, organization_id=1))
+
+    assert "-Pn" in external.command
+    assert "-Pn" not in internal.command
+
+
+def test_nmap_adapter_ignores_pn_user_set_hosts_without_open_services() -> None:
+    raw_output = """
+    <nmaprun>
+      <host>
+        <status state="up" reason="user-set"/>
+        <address addr="192.168.1.42" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="closed"/>
+          </port>
+        </ports>
+      </host>
+      <host>
+        <status state="up" reason="syn-ack"/>
+        <address addr="192.168.1.43" addrtype="ipv4"/>
+      </host>
+      <host>
+        <status state="down" reason="no-response"/>
+        <address addr="192.168.1.44" addrtype="ipv4"/>
+      </host>
+    </nmaprun>
+    """
+
+    adapter = NmapAdapter()
+    normalized = adapter.normalize_result(adapter.parse_result(raw_output))
+
+    assert [asset["value"] for asset in normalized.assets] == ["192.168.1.43"]
 
 
 def test_amass_adapter_parses_json_lines() -> None:

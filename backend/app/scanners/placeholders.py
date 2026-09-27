@@ -1,4 +1,5 @@
 import json
+import ipaddress
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -88,7 +89,6 @@ class NmapAdapter(PlaceholderScannerAdapter):
             "nmap",
             "-oX",
             "-",
-            "-Pn",
             "-n",
             "--max-retries",
             "1",
@@ -101,6 +101,8 @@ class NmapAdapter(PlaceholderScannerAdapter):
             "80,443",
             target.value,
         ]
+        if not _is_private_ip_target(target.value):
+            command.insert(3, "-Pn")
         return PreparedScannerJob(
             adapter_name=self.name,
             target=target.value,
@@ -136,15 +138,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
                 continue
 
             asset_type = "IP" if address_type in {"ipv4", "ipv6"} else "HOST"
-            assets.append(
-                {
-                    "asset_type": asset_type,
-                    "value": asset_value,
-                    "source": self.name,
-                    "metadata": {"addrtype": address_type},
-                }
-            )
-
+            host_services: list[dict[str, Any]] = []
             for port in host.findall("./ports/port"):
                 protocol = port.attrib.get("protocol", "").upper()
                 port_id = port.attrib.get("portid")
@@ -154,7 +148,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
                 service = port.find("service")
                 if protocol not in {"TCP", "UDP"} or port_id is None:
                     continue
-                services.append(
+                host_services.append(
                     {
                         "asset_type": asset_type,
                         "asset_value": asset_value,
@@ -169,7 +163,35 @@ class NmapAdapter(PlaceholderScannerAdapter):
                     }
                 )
 
+            status = host.find("status")
+            status_state = status.attrib.get("state") if status is not None else None
+            status_reason = status.attrib.get("reason") if status is not None else None
+            if status_state != "up":
+                continue
+            if status_reason == "user-set" and not host_services:
+                continue
+
+            assets.append(
+                {
+                    "asset_type": asset_type,
+                    "value": asset_value,
+                    "source": self.name,
+                    "metadata": {"addrtype": address_type, "status_reason": status_reason},
+                }
+            )
+            services.extend(host_services)
+
         return NormalizedScannerResult(assets=assets, services=services, metadata={"adapter": self.name})
+
+
+def _is_private_ip_target(value: str) -> bool:
+    try:
+        if "/" in value:
+            network = ipaddress.ip_network(value, strict=False)
+            return network.is_private
+        return ipaddress.ip_address(value).is_private
+    except ValueError:
+        return False
 
 
 class AmassAdapter(PlaceholderScannerAdapter):

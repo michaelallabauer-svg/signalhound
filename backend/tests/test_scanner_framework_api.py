@@ -5,11 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.asset import Asset
+from app.models.asset import AssetType
 from app.models.audit_log import AuditLog
 from app.models.finding import Finding
 from app.models.scanner_job import ScannerJob
 from app.models.service import Service
 from app.scanners.base import NormalizedScannerResult, PreparedScannerJob
+from app.repositories.assets import observe_asset
 
 
 def create_org_scope(client: TestClient) -> tuple[int, int]:
@@ -366,3 +368,88 @@ def test_run_internal_it_scanner_job_imports_internal_asset_as_known(
     audit_actions = list(db_session.scalars(select(AuditLog.action).order_by(AuditLog.id)))
     assert "scanner.started" in audit_actions
     assert "scanner.completed" in audit_actions
+
+
+def test_nmap_cidr_run_deactivates_scope_assets_not_seen_again(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    org_response = client.post("/api/v1/organizations", json={"name": "Internal Reconcile Corp"})
+    assert org_response.status_code == 201
+    organization_id = int(org_response.json()["id"])
+    scope_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Internal subnet",
+            "target_type": "CIDR",
+            "target": "192.168.50.0/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert scope_response.status_code == 201
+    scope_id = int(scope_response.json()["id"])
+    stale_asset, _ = observe_asset(
+        db_session,
+        organization_id=organization_id,
+        asset_type=AssetType.IP,
+        value="192.168.50.99",
+        source="nmap",
+        scope_id=scope_id,
+        known_asset=True,
+        metadata={"source": "previous scan"},
+    )
+    db_session.commit()
+
+    create_response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "adapter_name": "nmap",
+            "target": "192.168.50.0/24",
+        },
+    )
+    assert create_response.status_code == 201
+    job_id = create_response.json()["id"]
+
+    class FakeAdapter:
+        name = "nmap"
+        execution_supported = True
+
+        def execute(self, prepared_job: PreparedScannerJob) -> str:
+            return "raw-result"
+
+        def parse_result(self, raw_output: str) -> dict:
+            return {"raw": raw_output}
+
+        def normalize_result(self, parsed_result: dict) -> NormalizedScannerResult:
+            return NormalizedScannerResult(
+                assets=[
+                    {
+                        "asset_type": "IP",
+                        "value": "192.168.50.10",
+                        "source": "nmap",
+                        "metadata": {"source": "current scan"},
+                    }
+                ]
+            )
+
+    from app.api import scanner_jobs as scanner_jobs_api
+
+    monkeypatch.setattr(
+        scanner_jobs_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True, scanner_timeout_seconds=30),
+    )
+    monkeypatch.setattr(scanner_jobs_api.scanner_registry, "get", lambda name: FakeAdapter())
+
+    run_response = client.post(f"/api/v1/scanner-jobs/{job_id}/run")
+
+    assert run_response.status_code == 200
+    db_session.refresh(stale_asset)
+    current_asset = db_session.scalar(select(Asset).where(Asset.value == "192.168.50.10"))
+    assert stale_asset.active is False
+    assert current_asset is not None
+    assert current_asset.active is True

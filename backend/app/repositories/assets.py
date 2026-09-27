@@ -76,6 +76,31 @@ def get_asset(db: Session, asset_id: int) -> Asset | None:
     return db.get(Asset, asset_id)
 
 
+def deactivate_missing_assets(
+    db: Session,
+    *,
+    organization_id: int,
+    scope_id: int,
+    source: str,
+    observed_values: set[str],
+) -> int:
+    statement = (
+        select(Asset)
+        .where(Asset.organization_id == organization_id)
+        .where(Asset.scope_id == scope_id)
+        .where(Asset.source == source)
+        .where(Asset.active.is_(True))
+    )
+    changed = 0
+    for asset in db.scalars(statement):
+        if asset.value in observed_values:
+            continue
+        asset.active = False
+        changed += 1
+    db.flush()
+    return changed
+
+
 def list_asset_observations(db: Session, asset_id: int) -> list[AssetObservation]:
     statement = (
         select(AssetObservation)
@@ -83,4 +108,3 @@ def list_asset_observations(db: Session, asset_id: int) -> list[AssetObservation
         .order_by(AssetObservation.observed_at, AssetObservation.id)
     )
     return list(db.scalars(statement))
-

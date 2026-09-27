@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import UTC, datetime
+import ipaddress
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from app.models.scanner_job import ScannerJob, ScannerJobStatus
 from app.models.scope import ScanZone
 from app.models.service import ServiceProtocol
 from app.repositories.assets import observe_asset
+from app.repositories.assets import deactivate_missing_assets
 from app.repositories.findings import observe_finding
 from app.repositories.scanner_jobs import set_scanner_job_status
 from app.repositories.scopes import get_scope
@@ -56,6 +58,7 @@ def run_scanner_job(
         parsed_result = adapter.parse_result(raw_output)
         normalized_result = adapter.normalize_result(parsed_result)
         import_normalized_result(db, job=job, result=normalized_result)
+        reconcile_nmap_cidr_assets(db, job=job, result=normalized_result)
         job.completed_at = datetime.now(UTC)
         set_scanner_job_status(
             job,
@@ -185,3 +188,39 @@ def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[
 def _job_scan_zone(db: Session, job: ScannerJob) -> ScanZone:
     scope = get_scope(db, job.scope_id)
     return scope.scan_zone if scope is not None else ScanZone.EXTERNAL
+
+
+def reconcile_nmap_cidr_assets(db: Session, *, job: ScannerJob, result: NormalizedScannerResult) -> None:
+    if job.adapter_name != "nmap" or not _is_cidr_target(job.target):
+        return
+    observed_values = {str(asset["value"]).strip().lower().rstrip(".") for asset in result.assets}
+    deactivated = deactivate_missing_assets(
+        db,
+        organization_id=job.organization_id,
+        scope_id=job.scope_id,
+        source=job.adapter_name,
+        observed_values=observed_values,
+    )
+    if deactivated:
+        record_audit_event(
+            db,
+            action="asset.reconciled",
+            affected_object_type="scope",
+            affected_object_id=str(job.scope_id),
+            result="success",
+            metadata={
+                "scanner_job_id": job.id,
+                "source": job.adapter_name,
+                "deactivated_assets": deactivated,
+            },
+        )
+
+
+def _is_cidr_target(value: str) -> bool:
+    try:
+        if "/" not in value:
+            return False
+        ipaddress.ip_network(value, strict=False)
+        return True
+    except ValueError:
+        return False

@@ -466,6 +466,8 @@ Internal IT behavior:
 
 - Internal scans require an explicit `INTERNAL_IT` scope.
 - Internal scans do not use Amass or Nuclei in Epic 11.
+- Internal private IP and CIDR Nmap scans use host discovery instead of `-Pn`, so inactive addresses are not imported as active assets.
+- Re-running a Nmap CIDR scan marks previously imported Nmap assets in that scope inactive when they are no longer observed.
 - Credential checks, brute force, exploitation, lateral movement, OT scanning, and distributed scanner nodes are not implemented.
 
 ## Dashboard UI
