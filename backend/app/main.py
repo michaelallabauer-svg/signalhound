@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from app.api.assets import router as assets_router
 from app.api.health import router as health_router
 from app.api.organizations import router as organizations_router
+from app.api.scanner_adapters import router as scanner_adapters_router
+from app.api.scanner_jobs import router as scanner_jobs_router
 from app.api.scopes import router as scopes_router
 from app.api.services import router as services_router
 from app.core.config import get_settings
@@ -20,6 +22,8 @@ def create_app() -> FastAPI:
     app.include_router(scopes_router, prefix="/api/v1")
     app.include_router(assets_router, prefix="/api/v1")
     app.include_router(services_router, prefix="/api/v1")
+    app.include_router(scanner_adapters_router, prefix="/api/v1")
+    app.include_router(scanner_jobs_router, prefix="/api/v1")
 
     logger.info(
         "application_created",

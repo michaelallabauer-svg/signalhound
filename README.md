@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, and **Epic 3: Asset Inventory and Historization**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, and **Epic 4: Scanner Adapter Framework**.
 
-No scanner integrations, finding workflows, exploitation features, change detection, or frontend are implemented yet.
+No active scanner execution, finding workflows, exploitation features, change detection, or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -20,6 +20,8 @@ No scanner integrations, finding workflows, exploitation features, change detect
 - `backend/app/workers/celery_app.py` configures the Celery worker.
 - `backend/app/services/scope_validation.py` enforces scope before any future scanner can receive a target.
 - `backend/app/api/assets.py` and `backend/app/api/services.py` expose inventory and observation history APIs.
+- `backend/app/scanners/` contains the scanner adapter contract and registry.
+- `backend/app/api/scanner_jobs.py` prepares scanner jobs only after scope validation.
 - `backend/alembic/` contains the Alembic migration framework.
 - `docker-compose.yml` starts PostgreSQL, Redis, FastAPI, and Celery.
 
@@ -220,6 +222,30 @@ Historization behavior:
 - Assets may be recorded without a `scope_id` as discovered/unverified inventory, but scoped assets must pass scope validation.
 - No inactive records or historical observations are deleted when an asset or service is marked inactive.
 
+## Scanner Adapter Framework API
+
+List registered scanner adapters:
+
+```bash
+curl http://localhost:8010/api/v1/scanner-adapters
+```
+
+Prepare a scanner job:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/scanner-jobs \
+  -H "Content-Type: application/json" \
+  -d '{"organization_id":1,"scope_id":1,"adapter_name":"nmap","target":"www.example.com"}'
+```
+
+Important Epic 4 behavior:
+
+- Targets are scope-validated before any scanner adapter receives them.
+- Out-of-scope targets are rejected and audited.
+- Registered adapters: `nmap`, `amass`, `nuclei`.
+- Adapter execution is intentionally not implemented yet.
+- Scanner jobs are stored as `PREPARED` with prepared config, raw output fields, normalized result fields, and lifecycle timestamps for later epics.
+
 ## Implemented Scope
 
 Implemented:
@@ -243,10 +269,11 @@ Implemented:
 - Asset inventory
 - Service inventory
 - Asset and service observation history
+- Scanner adapter contract and registry
+- Scope-gated scanner job preparation
 
 Deferred to later epics:
 
-- Scanner adapters
 - External discovery
 - Finding management
 - Change detection
