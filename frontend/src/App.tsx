@@ -908,6 +908,7 @@ function ScannersTab({
   const [assessmentSubmitError, setAssessmentSubmitError] = useState<string | null>(null);
   const [followupBusy, setFollowupBusy] = useState(false);
   const [followupError, setFollowupError] = useState<string | null>(null);
+  const [followupNotice, setFollowupNotice] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
   const activeScopes = useMemo(() => scopes.filter((scope) => scope.active), [scopes]);
@@ -944,6 +945,8 @@ function ScannersTab({
   useEffect(() => {
     if (selectedAssessmentId === null) {
       setAssessmentDetail(null);
+      setFollowupError(null);
+      setFollowupNotice(null);
       return undefined;
     }
 
@@ -991,9 +994,11 @@ function ScannersTab({
   async function handlePrepareVulnerabilityChecks(assessmentRunId: number) {
     setFollowupBusy(true);
     setFollowupError(null);
+    setFollowupNotice(null);
     try {
       const result = await onPrepareVulnerabilityChecks(assessmentRunId);
       setRunOutput(formatFollowupOutput(result));
+      setFollowupNotice(formatFollowupNotice(result));
       const detail = await api.assessmentDetail(assessmentRunId);
       setAssessmentDetail(detail);
     } catch (caught) {
@@ -1193,6 +1198,7 @@ function ScannersTab({
             </div>
             {assessmentDetail.error_message && <div className="notice error">{assessmentDetail.error_message}</div>}
             {followupError && <div className="notice error">{followupError}</div>}
+            {followupNotice && <div className="notice success">{followupNotice}</div>}
             <div className="assessment-actions">
               <button
                 disabled={assessmentDetail.status !== "COMPLETED" || followupBusy}
@@ -1408,6 +1414,18 @@ function formatFollowupOutput(result: AssessmentFollowup) {
   }
 
   return lines.join("\n");
+}
+
+function formatFollowupNotice(result: AssessmentFollowup) {
+  if (result.prepared_targets.length > 0) {
+    return `${result.prepared_targets.length} vulnerability check${
+      result.prepared_targets.length === 1 ? "" : "s"
+    } prepared. Start the prepared Nuclei job${result.prepared_targets.length === 1 ? "" : "s"} below.`;
+  }
+  if (result.skipped_targets.length > 0) {
+    return "Vulnerability checks were already prepared for the observed web services.";
+  }
+  return "No vulnerability checks were prepared because this assessment did not observe web services.";
 }
 
 function formatNormalizedSummary(job: ScannerJob) {
