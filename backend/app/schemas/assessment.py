@@ -42,3 +42,12 @@ class AssessmentRunRead(BaseModel):
 
 class AssessmentRunDetailRead(AssessmentRunRead):
     jobs: list[ScannerJobRead]
+
+
+class AssessmentFollowupRead(BaseModel):
+    assessment_run_id: int
+    adapter_name: str
+    candidate_targets: list[str]
+    prepared_job_ids: list[int]
+    prepared_targets: list[str]
+    skipped_targets: list[str]

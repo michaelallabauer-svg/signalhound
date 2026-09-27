@@ -124,6 +124,15 @@ export type AssessmentRunDetail = AssessmentRun & {
   jobs: ScannerJob[];
 };
 
+export type AssessmentFollowup = {
+  assessment_run_id: number;
+  adapter_name: string;
+  candidate_targets: string[];
+  prepared_job_ids: number[];
+  prepared_targets: string[];
+  skipped_targets: string[];
+};
+
 export type ChangeSet = {
   id: number;
   organization_id: number;
@@ -205,6 +214,8 @@ export const api = {
     request<AssessmentRun[]>(`/assessments?organization_id=${organizationId}&include_archived=${includeArchived}`),
   assessmentDetail: (assessmentRunId: number) => request<AssessmentRunDetail>(`/assessments/${assessmentRunId}/detail`),
   createAssessment: (payload: Record<string, unknown>) => request<AssessmentRun>("/assessments", post(payload)),
+  prepareVulnerabilityChecks: (assessmentRunId: number) =>
+    request<AssessmentFollowup>(`/assessments/${assessmentRunId}/prepare-vulnerability-checks`, post({})),
   archiveAssessment: (assessmentRunId: number) =>
     request<AssessmentRun>(`/assessments/${assessmentRunId}/archive`, post({})),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),

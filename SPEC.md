@@ -123,6 +123,7 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Per-assessment job status, error, and output visibility
 - Automatic dashboard refresh while assessment runs are queued or running
 - Stored scanner output can be opened from the assessment detail view
+- Completed assessments can prepare follow-up Nuclei scanner jobs for observed in-scope web services
 
 ## Epic 11 Deliverables
 

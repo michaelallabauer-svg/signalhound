@@ -19,6 +19,7 @@ import {
   api,
   Asset,
   AssetDetail,
+  AssessmentFollowup,
   AssessmentRunDetail,
   AssessmentRun,
   ChangeSet,
@@ -313,6 +314,11 @@ export function App() {
                     "Assessment queued. Scanner jobs will run in the worker.",
                   )
                 }
+                onPrepareVulnerabilityChecks={async (assessmentRunId) => {
+                  const result = await api.prepareVulnerabilityChecks(assessmentRunId);
+                  await refresh(selectedOrgId, false);
+                  return result;
+                }}
                 onRun={async (jobId) => {
                   setError(null);
                   try {
@@ -874,6 +880,7 @@ function ScannersTab({
   onToggleArchivedAssessments,
   onPrepare,
   onCreateAssessment,
+  onPrepareVulnerabilityChecks,
   onRun,
   onRunStateChange,
   onArchiveAssessment,
@@ -888,6 +895,7 @@ function ScannersTab({
   onToggleArchivedAssessments: (show: boolean) => void;
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
   onCreateAssessment: (payload: Record<string, unknown>) => Promise<boolean>;
+  onPrepareVulnerabilityChecks: (assessmentRunId: number) => Promise<AssessmentFollowup>;
   onRun: (jobId: number) => Promise<boolean>;
   onRunStateChange: (activity: ScannerActivity) => void;
   onArchiveAssessment: (assessmentRunId: number) => Promise<unknown>;
@@ -898,6 +906,8 @@ function ScannersTab({
   const [assessmentDetail, setAssessmentDetail] = useState<AssessmentRunDetail | null>(null);
   const [assessmentDetailError, setAssessmentDetailError] = useState<string | null>(null);
   const [assessmentSubmitError, setAssessmentSubmitError] = useState<string | null>(null);
+  const [followupBusy, setFollowupBusy] = useState(false);
+  const [followupError, setFollowupError] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
   const activeScopes = useMemo(() => scopes.filter((scope) => scope.active), [scopes]);
@@ -975,6 +985,21 @@ function ScannersTab({
     } finally {
       setRunningJobId(null);
       onRunStateChange(null);
+    }
+  }
+
+  async function handlePrepareVulnerabilityChecks(assessmentRunId: number) {
+    setFollowupBusy(true);
+    setFollowupError(null);
+    try {
+      const result = await onPrepareVulnerabilityChecks(assessmentRunId);
+      setRunOutput(formatFollowupOutput(result));
+      const detail = await api.assessmentDetail(assessmentRunId);
+      setAssessmentDetail(detail);
+    } catch (caught) {
+      setFollowupError(caught instanceof Error ? caught.message : "Could not prepare vulnerability checks");
+    } finally {
+      setFollowupBusy(false);
     }
   }
 
@@ -1167,6 +1192,17 @@ function ScannersTab({
               <SummaryItem label="Findings" value={assessmentDetail.summary.findings ?? 0} />
             </div>
             {assessmentDetail.error_message && <div className="notice error">{assessmentDetail.error_message}</div>}
+            {followupError && <div className="notice error">{followupError}</div>}
+            <div className="assessment-actions">
+              <button
+                disabled={assessmentDetail.status !== "COMPLETED" || followupBusy}
+                onClick={() => void handlePrepareVulnerabilityChecks(assessmentDetail.id)}
+                type="button"
+              >
+                <Radar size={16} />
+                {followupBusy ? "Preparing checks" : "Prepare vulnerability checks"}
+              </button>
+            </div>
             <div className="assessment-job-list">
               {assessmentDetail.jobs.map((job) => (
                 <button
@@ -1342,6 +1378,36 @@ function formatStoredJobOutput(job: ScannerJob) {
 
   const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);
   return [...summary, "", "SCANNER OUTPUT", trimOutput(output)].join("\n");
+}
+
+function formatFollowupOutput(result: AssessmentFollowup) {
+  const lines = [
+    "FOLLOW-UP CHECK PREPARATION",
+    `  Assessment: #${result.assessment_run_id}`,
+    `  Adapter: ${result.adapter_name}`,
+    "",
+    "CANDIDATES",
+    `  ${result.candidate_targets.length ? result.candidate_targets.join(", ") : "No web-service targets found"}`,
+    "",
+    "PREPARED JOBS",
+    `  ${result.prepared_targets.length ? result.prepared_targets.join(", ") : "No new jobs prepared"}`,
+  ];
+
+  if (result.skipped_targets.length) {
+    lines.push("", "SKIPPED EXISTING JOBS", `  ${result.skipped_targets.join(", ")}`);
+  }
+
+  if (!result.candidate_targets.length) {
+    lines.push(
+      "",
+      "NEXT STEP",
+      "  No vulnerability checks were prepared because this assessment did not observe web services.",
+    );
+  } else if (result.prepared_targets.length) {
+    lines.push("", "NEXT STEP", "  Start the prepared Nuclei jobs from the Scanner jobs table.");
+  }
+
+  return lines.join("\n");
 }
 
 function formatNormalizedSummary(job: ScannerJob) {

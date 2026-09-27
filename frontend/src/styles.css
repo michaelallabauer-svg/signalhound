@@ -468,6 +468,11 @@ th {
   font-size: 18px;
 }
 
+.assessment-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .assessment-job-list {
   display: grid;
   gap: 8px;

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.assessment import AssessmentRun
 from app.models.assessment import AssessmentRunStatus
 from app.models.scanner_job import ScannerJob
+from app.models.scanner_job import ScannerJobStatus
 
 
 def create_org_scope(client: TestClient) -> tuple[int, int]:
@@ -258,3 +259,128 @@ def test_archive_rejects_active_assessment(
     archive_response = client.post(f"/api/v1/assessments/{create_response.json()['id']}/archive")
 
     assert archive_response.status_code == 409
+
+
+def test_prepare_vulnerability_checks_creates_nuclei_jobs_for_web_services(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    monkeypatch.setattr(assessments_api, "enqueue_assessment_run", lambda run_id: None)
+    org_response = client.post("/api/v1/organizations", json={"name": "Followup Corp"})
+    assert org_response.status_code == 201
+    organization_id = int(org_response.json()["id"])
+    scope_response = client.post(
+        "/api/v1/scopes",
+        json={
+            "organization_id": organization_id,
+            "name": "Followup subnet",
+            "target_type": "CIDR",
+            "target": "192.168.60.0/24",
+            "scan_zone": "INTERNAL_IT",
+        },
+    )
+    assert scope_response.status_code == 201
+    scope_id = int(scope_response.json()["id"])
+    create_response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "internal_it_quick",
+            "target": "192.168.60.0/24",
+        },
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["id"]
+
+    run = db_session.get(AssessmentRun, run_id)
+    assert run is not None
+    run.status = AssessmentRunStatus.COMPLETED
+    nmap_job = (
+        db_session.query(ScannerJob)
+        .filter(ScannerJob.assessment_run_id == run_id)
+        .filter(ScannerJob.adapter_name == "nmap")
+        .one()
+    )
+    nmap_job.status = ScannerJobStatus.COMPLETED
+    nmap_job.normalized_result = {
+        "assets": [],
+        "services": [
+            {
+                "asset_type": "SUBDOMAIN",
+                "asset_value": "192.168.60.10",
+                "protocol": "TCP",
+                "port": 443,
+                "name": "https",
+                "source": "nmap",
+                "metadata": {},
+            },
+            {
+                "asset_type": "SUBDOMAIN",
+                "asset_value": "192.168.60.11",
+                "protocol": "TCP",
+                "port": 22,
+                "name": "ssh",
+                "source": "nmap",
+                "metadata": {},
+            },
+        ],
+        "findings": [],
+    }
+    db_session.commit()
+
+    response = client.post(f"/api/v1/assessments/{run_id}/prepare-vulnerability-checks")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["candidate_targets"] == ["192.168.60.10"]
+    assert payload["prepared_targets"] == ["192.168.60.10"]
+    assert payload["skipped_targets"] == []
+
+    jobs = db_session.query(ScannerJob).order_by(ScannerJob.id).all()
+    nuclei_jobs = [job for job in jobs if job.adapter_name == "nuclei" and job.assessment_run_id == run_id]
+    assert len(nuclei_jobs) == 1
+    assert nuclei_jobs[-1].status.value == "PREPARED"
+    assert nuclei_jobs[-1].target == "192.168.60.10"
+
+    second_response = client.post(f"/api/v1/assessments/{run_id}/prepare-vulnerability-checks")
+    assert second_response.status_code == 200
+    assert second_response.json()["prepared_targets"] == []
+    assert second_response.json()["skipped_targets"] == ["192.168.60.10"]
+
+
+def test_prepare_vulnerability_checks_requires_completed_assessment(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    monkeypatch.setattr(assessments_api, "enqueue_assessment_run", lambda run_id: None)
+    organization_id, scope_id = create_org_scope(client)
+    create_response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "external_quick",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+
+    response = client.post(f"/api/v1/assessments/{create_response.json()['id']}/prepare-vulnerability-checks")
+
+    assert response.status_code == 409

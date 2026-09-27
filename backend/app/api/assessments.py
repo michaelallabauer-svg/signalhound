@@ -10,9 +10,15 @@ from app.models.scope import ScanZone
 from app.repositories.assessments import create_assessment_run, get_assessment_run, list_assessment_runs
 from app.repositories.organizations import get_organization
 from app.repositories.scopes import get_scope
-from app.schemas.assessment import AssessmentRunCreate, AssessmentRunDetailRead, AssessmentRunRead, ScanProfileRead
+from app.schemas.assessment import (
+    AssessmentFollowupRead,
+    AssessmentRunCreate,
+    AssessmentRunDetailRead,
+    AssessmentRunRead,
+    ScanProfileRead,
+)
 from app.schemas.scanner import ScannerJobRead
-from app.services.assessment_orchestration import prepare_assessment_jobs
+from app.services.assessment_orchestration import prepare_assessment_jobs, prepare_vulnerability_followups
 from app.services.audit import record_audit_event
 from app.services.scan_profiles import get_scan_profile, list_scan_profiles
 from app.services.scope_validation import ScopeValidator
@@ -148,6 +154,25 @@ def archive(assessment_run_id: int, db: Session = Depends(get_db)) -> Assessment
     db.commit()
     db.refresh(run)
     return run
+
+
+@router.post("/assessments/{assessment_run_id}/prepare-vulnerability-checks", response_model=AssessmentFollowupRead)
+def prepare_vulnerability_checks(
+    assessment_run_id: int,
+    db: Session = Depends(get_db),
+) -> AssessmentFollowupRead:
+    run = get_assessment_run(db, assessment_run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
+
+    try:
+        payload = prepare_vulnerability_followups(db, run=run)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    db.commit()
+    return AssessmentFollowupRead(**payload)
 
 
 @router.get("/assessments/{assessment_run_id}/detail", response_model=AssessmentRunDetailRead)

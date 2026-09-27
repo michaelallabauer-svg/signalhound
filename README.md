@@ -454,6 +454,12 @@ View one assessment with linked scanner jobs:
 curl http://localhost:8010/api/v1/assessments/1/detail
 ```
 
+Prepare follow-up vulnerability scanner jobs for web services observed in a completed assessment:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/assessments/1/prepare-vulnerability-checks
+```
+
 Archive a completed, failed, or cancelled assessment run:
 
 ```bash
@@ -470,6 +476,7 @@ Epic 9 and 10 behavior:
 - Assessment detail responses include linked scanner jobs, status, raw output, normalized results, and errors.
 - The dashboard refreshes active assessment runs while they are queued or running.
 - Assessment profiles must match the selected scope's scan zone.
+- Completed assessments can prepare explicit follow-up Nuclei jobs for observed web services.
 - Archived assessment runs are hidden by default and can be shown with `include_archived=true`.
 
 Internal IT behavior:
@@ -504,6 +511,7 @@ Epic 8 behavior:
 - Zone-aware assessment profile selection.
 - Assessment run list with status and imported result counts.
 - Assessment detail view with linked scanner jobs, errors, and stored scanner output.
+- Assessment detail view can prepare follow-up vulnerability checks for observed web services.
 - Assessment run archival and optional archive visibility.
 - Change-set comparison form and change-set table.
 - Frontend is served by Docker Compose through the `frontend` service.
