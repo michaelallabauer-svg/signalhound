@@ -28,6 +28,9 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        AMASS_VERSION: ${AMASS_VERSION:-5.1.1}
+        NUCLEI_VERSION: ${NUCLEI_VERSION:-3.11.1}
     env_file:
       - .env.example
     environment:
@@ -47,6 +50,9 @@ services:
   worker:
     build:
       context: ./backend
+      args:
+        AMASS_VERSION: ${AMASS_VERSION:-5.1.1}
+        NUCLEI_VERSION: ${NUCLEI_VERSION:-3.11.1}
     env_file:
       - .env.example
     environment:

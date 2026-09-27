@@ -49,6 +49,8 @@ Important variables:
 - `SCANNER_TIMEOUT_SECONDS`
 - `CORS_ORIGINS`
 - `VITE_API_BASE_URL`
+- `AMASS_VERSION`
+- `NUCLEI_VERSION`
 
 Never commit real credentials.
 
@@ -286,7 +288,7 @@ Epic 5 behavior:
 
 - `nmap` execution uses a shell-free subprocess command plan: `nmap -oX - -sV <target>`.
 - `amass` execution uses JSONL output: `amass enum -json - -d <target>`.
-- External scanner binaries must be installed in the backend container/environment before execution can succeed.
+- The backend and worker Docker images include `nmap`, OWASP Amass, and ProjectDiscovery Nuclei.
 - Results are parsed and normalized into assets/services.
 - In-scope discovered assets are linked to the scope and marked known.
 - Out-of-scope discovered assets may be recorded without `scope_id` as discovered/unverified inventory.
@@ -338,6 +340,13 @@ Finding behavior:
 - `first_seen` and the current lifecycle `status` are preserved during re-observation.
 - Status changes are explicit API actions and are auditable.
 - Nuclei findings are imported through scanner jobs when scanner execution is enabled.
+
+Scanner tooling:
+
+- `nmap` is installed from the Debian package repository.
+- Amass is installed from the pinned `AMASS_VERSION` GitHub release.
+- Nuclei is installed from the pinned `NUCLEI_VERSION` GitHub release.
+- Scanner execution remains disabled until `SCANNER_EXECUTION_ENABLED=true` is set.
 
 ## Change Detection API
 
