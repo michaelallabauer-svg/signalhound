@@ -334,6 +334,11 @@ th {
   color: #765428;
 }
 
+.status-archived {
+  background: #edf1ef;
+  color: #66726d;
+}
+
 .run-output {
   background: #0f171b;
   border: 1px solid #27363c;
@@ -352,6 +357,20 @@ th {
 
 .run-output-panel {
   min-width: 0;
+}
+
+.inline-toggle {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+  margin-bottom: 10px;
+  text-transform: none;
+}
+
+.inline-toggle input {
+  min-height: 0;
+  width: auto;
 }
 
 .assessment-runs-table tbody tr {

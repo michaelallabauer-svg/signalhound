@@ -137,6 +137,13 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 
 Epic 11 does not implement credential checks, brute force, exploit execution, lateral movement, internal OT reconnaissance, or distributed scanner nodes.
 
+## Operational Maintenance
+
+- Scopes are archived through soft deletion (`active=false`) so historical scan context remains auditable.
+- Assessment runs can be archived after they are no longer queued or running.
+- Archived assessment runs are hidden from default lists but can be shown explicitly.
+- Archiving is audited.
+
 ## Security Boundary
 
 SignalHound is intended only for authorized security assessments. The current implementation performs no scanning, exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.

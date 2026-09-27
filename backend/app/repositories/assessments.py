@@ -26,10 +26,17 @@ def create_assessment_run(
     return run
 
 
-def list_assessment_runs(db: Session, *, organization_id: int | None = None) -> list[AssessmentRun]:
+def list_assessment_runs(
+    db: Session,
+    *,
+    organization_id: int | None = None,
+    include_archived: bool = False,
+) -> list[AssessmentRun]:
     statement = select(AssessmentRun).order_by(AssessmentRun.id)
     if organization_id is not None:
         statement = statement.where(AssessmentRun.organization_id == organization_id)
+    if not include_archived:
+        statement = statement.where(AssessmentRun.status != AssessmentRunStatus.ARCHIVED)
     return list(db.scalars(statement))
 
 

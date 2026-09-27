@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.models.assessment import AssessmentRunStatus
 from app.models.scanner_job import ScannerJob
 from app.models.scope import ScanZone
 from app.repositories.assessments import create_assessment_run, get_assessment_run, list_assessment_runs
@@ -106,8 +107,12 @@ def create(payload: AssessmentRunCreate, db: Session = Depends(get_db)) -> Asses
 
 
 @router.get("/assessments", response_model=list[AssessmentRunRead])
-def list_all(organization_id: int | None = None, db: Session = Depends(get_db)) -> list[AssessmentRunRead]:
-    return list_assessment_runs(db, organization_id=organization_id)
+def list_all(
+    organization_id: int | None = None,
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+) -> list[AssessmentRunRead]:
+    return list_assessment_runs(db, organization_id=organization_id, include_archived=include_archived)
 
 
 @router.get("/assessments/{assessment_run_id}", response_model=AssessmentRunRead)
@@ -115,6 +120,33 @@ def get(assessment_run_id: int, db: Session = Depends(get_db)) -> AssessmentRunR
     run = get_assessment_run(db, assessment_run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
+    return run
+
+
+@router.post("/assessments/{assessment_run_id}/archive", response_model=AssessmentRunRead)
+def archive(assessment_run_id: int, db: Session = Depends(get_db)) -> AssessmentRunRead:
+    run = get_assessment_run(db, assessment_run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
+    if run.status in {AssessmentRunStatus.QUEUED, AssessmentRunStatus.RUNNING}:
+        raise HTTPException(status_code=409, detail="Active assessment runs cannot be archived")
+
+    previous_status = run.status.value
+    run.status = AssessmentRunStatus.ARCHIVED
+    record_audit_event(
+        db,
+        action="assessment.archived",
+        affected_object_type="assessment_run",
+        affected_object_id=str(run.id),
+        result="success",
+        metadata={
+            "previous_status": previous_status,
+            "profile_name": run.profile_name,
+            "target": run.target,
+        },
+    )
+    db.commit()
+    db.refresh(run)
     return run
 
 

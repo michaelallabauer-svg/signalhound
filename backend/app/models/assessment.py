@@ -14,6 +14,7 @@ class AssessmentRunStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+    ARCHIVED = "ARCHIVED"
 
 
 class AssessmentRun(Base):

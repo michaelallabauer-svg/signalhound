@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertTriangle,
+  Archive,
   Box,
   BriefcaseBusiness,
   Crosshair,
@@ -84,6 +85,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [scannerActivity, setScannerActivity] = useState<ScannerActivity>(null);
+  const [showArchivedAssessments, setShowArchivedAssessments] = useState(false);
 
   const selectedOrganization = state.organizations.find((organization) => organization.id === selectedOrgId) ?? null;
 
@@ -112,7 +114,7 @@ export function App() {
         api.assets(organizationId),
         api.findings(organizationId),
         api.scannerJobs(organizationId),
-        api.assessments(organizationId),
+        api.assessments(organizationId, showArchivedAssessments),
         api.changeSets(organizationId),
       ]);
       const services = (await Promise.all(assets.map((asset) => api.services(asset.id)))).flat();
@@ -143,6 +145,12 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    if (selectedOrgId !== null) {
+      void refresh(selectedOrgId, false);
+    }
+  }, [showArchivedAssessments]);
 
   useEffect(() => {
     const hasActiveAssessment = state.assessmentRuns.some((run) => ["QUEUED", "RUNNING"].includes(run.status));
@@ -263,6 +271,7 @@ export function App() {
                 organizationId={selectedOrgId}
                 scopes={state.scopes}
                 onCreate={(payload) => withAction(() => api.createScope(payload), "Scope created")}
+                onArchive={(scopeId) => withAction(() => api.archiveScope(scopeId), "Scope archived")}
               />
             )}
             {activeTab === "inventory" && selectedOrgId && (
@@ -290,6 +299,8 @@ export function App() {
                 profiles={state.scanProfiles}
                 jobs={state.scannerJobs}
                 assessmentRuns={state.assessmentRuns}
+                showArchivedAssessments={showArchivedAssessments}
+                onToggleArchivedAssessments={setShowArchivedAssessments}
                 onPrepare={(payload) => withAction(() => api.createScannerJob(payload), "Scanner job prepared")}
                 onCreateAssessment={(payload) =>
                   withAction(
@@ -313,6 +324,9 @@ export function App() {
                   }
                 }}
                 onRunStateChange={setScannerActivity}
+                onArchiveAssessment={(assessmentRunId) =>
+                  withAction(() => api.archiveAssessment(assessmentRunId), "Assessment archived")
+                }
               />
             )}
             {activeTab === "changes" && selectedOrgId && (
@@ -410,10 +424,12 @@ function ScopesTab({
   organizationId,
   scopes,
   onCreate,
+  onArchive,
 }: {
   organizationId: number;
   scopes: Scope[];
   onCreate: (payload: Record<string, unknown>) => Promise<unknown>;
+  onArchive: (scopeId: number) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({ name: "", target_type: "DOMAIN", target: "", scan_zone: "EXTERNAL" });
   return (
@@ -456,17 +472,41 @@ function ScopesTab({
       </section>
       <section className="panel">
         <PanelHeader title="Scopes" />
-        <SimpleTable
-          columns={["Name", "Type", "Target", "Zone", "State"]}
-          rows={scopes.map((scope) => [
-            scope.name,
-            scope.target_type,
-            scope.target,
-            scope.scan_zone,
-            scope.active ? "ACTIVE" : "INACTIVE",
-          ])}
-          empty="No scopes"
-        />
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Target</th>
+              <th>Zone</th>
+              <th>State</th>
+              <th>Archive</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scopes.map((scope) => (
+              <tr key={scope.id}>
+                <td>{scope.name}</td>
+                <td>{scope.target_type}</td>
+                <td>{scope.target}</td>
+                <td>{scope.scan_zone}</td>
+                <td>{scope.active ? "ACTIVE" : "ARCHIVED"}</td>
+                <td>
+                  <button
+                    className="icon-button compact"
+                    disabled={!scope.active}
+                    onClick={() => void onArchive(scope.id)}
+                    title="Archive scope"
+                    type="button"
+                  >
+                    <Archive size={15} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {scopes.length === 0 && <div className="empty-inline">No scopes</div>}
       </section>
     </section>
   );
@@ -663,10 +703,13 @@ function ScannersTab({
   profiles,
   jobs,
   assessmentRuns,
+  showArchivedAssessments,
+  onToggleArchivedAssessments,
   onPrepare,
   onCreateAssessment,
   onRun,
   onRunStateChange,
+  onArchiveAssessment,
 }: {
   organizationId: number;
   scopes: Scope[];
@@ -674,10 +717,13 @@ function ScannersTab({
   profiles: ScanProfile[];
   jobs: ScannerJob[];
   assessmentRuns: AssessmentRun[];
+  showArchivedAssessments: boolean;
+  onToggleArchivedAssessments: (show: boolean) => void;
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
   onCreateAssessment: (payload: Record<string, unknown>) => Promise<unknown>;
   onRun: (jobId: number) => Promise<boolean>;
   onRunStateChange: (activity: ScannerActivity) => void;
+  onArchiveAssessment: (assessmentRunId: number) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
   const [assessmentForm, setAssessmentForm] = useState({ scope_id: "", profile_name: "external_quick", target: "" });
@@ -866,6 +912,14 @@ function ScannersTab({
       </section>
       <section className="panel">
         <PanelHeader title="Assessment runs" />
+        <label className="inline-toggle">
+          <input
+            checked={showArchivedAssessments}
+            onChange={(event) => onToggleArchivedAssessments(event.target.checked)}
+            type="checkbox"
+          />
+          Show archived runs
+        </label>
         <table className="assessment-runs-table">
           <thead>
             <tr>
@@ -873,6 +927,7 @@ function ScannersTab({
               <th>Target</th>
               <th>Status</th>
               <th>Imported</th>
+              <th>Archive</th>
             </tr>
           </thead>
           <tbody>
@@ -890,6 +945,20 @@ function ScannersTab({
                 <td>{`${run.summary.assets ?? 0} assets, ${run.summary.services ?? 0} services, ${
                   run.summary.findings ?? 0
                 } findings`}</td>
+                <td>
+                  <button
+                    className="icon-button compact"
+                    disabled={["QUEUED", "RUNNING", "ARCHIVED"].includes(run.status)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void onArchiveAssessment(run.id);
+                    }}
+                    title="Archive assessment run"
+                    type="button"
+                  >
+                    <Archive size={15} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

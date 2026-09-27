@@ -82,7 +82,7 @@ export type AssessmentRun = {
   scope_id: number;
   profile_name: string;
   target: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "ARCHIVED";
   summary: {
     assets?: number;
     services?: number;
@@ -169,6 +169,7 @@ export const api = {
   createOrganization: (name: string) => request<Organization>("/organizations", post({ name })),
   scopes: (organizationId: number) => request<Scope[]>(`/scopes?organization_id=${organizationId}`),
   createScope: (payload: Record<string, unknown>) => request<Scope>("/scopes", post(payload)),
+  archiveScope: (scopeId: number) => request<void>(`/scopes/${scopeId}`, del()),
   assets: (organizationId: number) => request<Asset[]>(`/assets?organization_id=${organizationId}`),
   createAsset: (payload: Record<string, unknown>) => request<Asset>("/assets", post(payload)),
   services: (assetId: number) => request<Service[]>(`/services?asset_id=${assetId}`),
@@ -176,9 +177,12 @@ export const api = {
   createFinding: (payload: Record<string, unknown>) => request<Finding>("/findings", post(payload)),
   scannerAdapters: () => request<ScannerAdapter[]>("/scanner-adapters"),
   scanProfiles: () => request<ScanProfile[]>("/scan-profiles"),
-  assessments: (organizationId: number) => request<AssessmentRun[]>(`/assessments?organization_id=${organizationId}`),
+  assessments: (organizationId: number, includeArchived = false) =>
+    request<AssessmentRun[]>(`/assessments?organization_id=${organizationId}&include_archived=${includeArchived}`),
   assessmentDetail: (assessmentRunId: number) => request<AssessmentRunDetail>(`/assessments/${assessmentRunId}/detail`),
   createAssessment: (payload: Record<string, unknown>) => request<AssessmentRun>("/assessments", post(payload)),
+  archiveAssessment: (assessmentRunId: number) =>
+    request<AssessmentRun>(`/assessments/${assessmentRunId}/archive`, post({})),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),
   scannerJob: (jobId: number) => request<ScannerJob>(`/scanner-jobs/${jobId}`),
   createScannerJob: (payload: Record<string, unknown>) => request<ScannerJob>("/scanner-jobs", post(payload)),
@@ -197,5 +201,11 @@ function post(payload: Record<string, unknown>): RequestInit {
   return {
     method: "POST",
     body: JSON.stringify(payload),
+  };
+}
+
+function del(): RequestInit {
+  return {
+    method: "DELETE",
   };
 }

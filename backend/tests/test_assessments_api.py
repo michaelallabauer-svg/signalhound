@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.assessment import AssessmentRun
+from app.models.assessment import AssessmentRunStatus
 from app.models.scanner_job import ScannerJob
 
 
@@ -187,3 +188,73 @@ def test_create_assessment_rejects_profile_scope_zone_mismatch(
 
     assert response.status_code == 422
     assert "zone" in response.json()["detail"]
+
+
+def test_archive_completed_assessment_hides_it_from_default_list(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    monkeypatch.setattr(assessments_api, "enqueue_assessment_run", lambda run_id: None)
+    organization_id, scope_id = create_org_scope(client)
+
+    create_response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "external_quick",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["id"]
+    stored_run = db_session.get(AssessmentRun, run_id)
+    assert stored_run is not None
+    stored_run.status = AssessmentRunStatus.COMPLETED
+    db_session.commit()
+
+    archive_response = client.post(f"/api/v1/assessments/{run_id}/archive")
+
+    assert archive_response.status_code == 200
+    assert archive_response.json()["status"] == "ARCHIVED"
+    default_list = client.get(f"/api/v1/assessments?organization_id={organization_id}")
+    archived_list = client.get(f"/api/v1/assessments?organization_id={organization_id}&include_archived=true")
+    assert default_list.json() == []
+    assert [run["id"] for run in archived_list.json()] == [run_id]
+
+
+def test_archive_rejects_active_assessment(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from app.api import assessments as assessments_api
+
+    monkeypatch.setattr(
+        assessments_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True),
+    )
+    monkeypatch.setattr(assessments_api, "enqueue_assessment_run", lambda run_id: None)
+    organization_id, scope_id = create_org_scope(client)
+    create_response = client.post(
+        "/api/v1/assessments",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "profile_name": "external_quick",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+
+    archive_response = client.post(f"/api/v1/assessments/{create_response.json()['id']}/archive")
+
+    assert archive_response.status_code == 409

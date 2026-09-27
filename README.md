@@ -220,6 +220,14 @@ Scope target behavior:
 - `CIDR` authorizes IP addresses inside the range and equal or narrower CIDR targets.
 - `EXTERNAL` and `INTERNAL_IT` scopes are separate authorization zones.
 
+Archive a scope:
+
+```bash
+curl -X DELETE http://localhost:8010/api/v1/scopes/1
+```
+
+Scope archival is a soft delete. The record stays available for historical audit context and is no longer active for future scans.
+
 ## Asset Inventory API
 
 Record or refresh an asset observation:
@@ -424,10 +432,22 @@ List assessment runs:
 curl http://localhost:8010/api/v1/assessments?organization_id=1
 ```
 
+List assessment runs including archived runs:
+
+```bash
+curl 'http://localhost:8010/api/v1/assessments?organization_id=1&include_archived=true'
+```
+
 View one assessment with linked scanner jobs:
 
 ```bash
 curl http://localhost:8010/api/v1/assessments/1/detail
+```
+
+Archive a completed, failed, or cancelled assessment run:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/assessments/1/archive
 ```
 
 Epic 9 and 10 behavior:
@@ -440,6 +460,7 @@ Epic 9 and 10 behavior:
 - Assessment detail responses include linked scanner jobs, status, raw output, normalized results, and errors.
 - The dashboard refreshes active assessment runs while they are queued or running.
 - Assessment profiles must match the selected scope's scan zone.
+- Archived assessment runs are hidden by default and can be shown with `include_archived=true`.
 
 Internal IT behavior:
 
@@ -461,6 +482,7 @@ Epic 8 behavior:
 - Overview metrics for active scopes, assets, services, findings, scanner jobs, backend health, and latest change count.
 - Scope creation and scope table.
 - External and internal IT scope zones.
+- Scope archival from the scope table.
 - Asset observation form and inventory tables.
 - Finding creation and finding table.
 - Scanner job preparation and run action.
@@ -468,6 +490,7 @@ Epic 8 behavior:
 - Zone-aware assessment profile selection.
 - Assessment run list with status and imported result counts.
 - Assessment detail view with linked scanner jobs, errors, and stored scanner output.
+- Assessment run archival and optional archive visibility.
 - Change-set comparison form and change-set table.
 - Frontend is served by Docker Compose through the `frontend` service.
 - Browser API access is enabled through backend CORS configuration.
