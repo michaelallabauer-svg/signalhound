@@ -130,6 +130,7 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Internal host, IP, and CIDR scope validation
 - CIDR scope validation for both individual IP targets and scoped CIDR targets
 - Internal quick assessment profile using conservative Nmap service discovery only
+- Internal CIDR import keeps hosts with open services or reliable discovery reasons, while ignoring Docker/NAT-only pseudo-up responses without open services
 - Scanner-job preparation uses the selected scope's scan zone instead of assuming external scans
 - Scanner result import preserves internal in-scope assets as known assets
 - Dashboard scope creation supports `EXTERNAL` and `INTERNAL_IT`

@@ -467,6 +467,8 @@ Internal IT behavior:
 - Internal scans require an explicit `INTERNAL_IT` scope.
 - Internal scans do not use Amass or Nuclei in Epic 11.
 - Internal private IP and CIDR Nmap scans use host discovery instead of `-Pn`, so inactive addresses are not imported as active assets.
+- For private CIDR scans, SignalHound imports hosts that have an open service or a reliable Nmap discovery reason such as `echo-reply`; Docker/NAT-only `reset`, `user-set`, and `unknown-response` hosts without open services are ignored.
+- Docker Desktop can miss phones, TVs, and IoT devices that block ICMP and expose no scanned ports. Full LAN inventory will require a future host/LAN scanner node outside the Docker NAT path.
 - Re-running a Nmap CIDR scan marks previously imported Nmap assets in that scope inactive when they are no longer observed.
 - Credential checks, brute force, exploitation, lateral movement, OT scanning, and distributed scanner nodes are not implemented.
 

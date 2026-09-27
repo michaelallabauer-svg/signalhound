@@ -169,7 +169,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
             status_reason = status.attrib.get("reason") if status is not None else None
             if status_state != "up":
                 continue
-            if require_open_service and not host_services:
+            if require_open_service and not host_services and not _is_reliable_host_discovery_reason(status_reason):
                 continue
             if status_reason in {"user-set", "unknown-response"} and not host_services:
                 continue
@@ -206,6 +206,14 @@ def _is_private_cidr_nmaprun(parsed_result: Any) -> bool:
         except ValueError:
             continue
     return False
+
+
+def _is_reliable_host_discovery_reason(reason: str | None) -> bool:
+    if reason is None:
+        return False
+    if reason in {"reset", "user-set", "unknown-response", "no-response"}:
+        return False
+    return True
 
 
 class AmassAdapter(PlaceholderScannerAdapter):

@@ -2,7 +2,9 @@
 
 This guide describes how to assess a local network in an authorized, low-impact way.
 
-SignalHound currently focuses on external reconnaissance. Internal network scanning is a future epic and is not implemented in the application yet. Until that exists, local network checks should be performed manually and documented in SignalHound as observed assets, services, and findings.
+SignalHound supports a conservative internal IT quick assessment for explicitly authorized `INTERNAL_IT` scopes. The current Docker-based scanner can identify hosts that answer reliable Nmap discovery probes, such as ICMP echo replies, and hosts with open scanned services. It is not a complete LAN inventory tool yet.
+
+Docker Desktop can make local network discovery noisy or incomplete: some probes make every address look up, while phones, TVs, and IoT devices may block ICMP and expose no scanned TCP services. For full LAN inventory, SignalHound needs a future scanner node that runs directly on the host or inside the LAN rather than only through Docker NAT.
 
 ## Safety Rules
 
@@ -45,7 +47,7 @@ Examples:
 192.168.1.100-150  guest Wi-Fi range, excluded
 ```
 
-SignalHound currently supports CIDR scopes in the data model, but the implemented scanner workflow is still designed around the external recon MVP. Treat internal CIDR scopes as documentation until the internal recon epic is implemented.
+SignalHound supports active internal CIDR scopes via `scan_zone=INTERNAL_IT`. Create the scope explicitly before running an assessment. Host/CIDR inputs such as `192.168.0.1/24` are normalized to the network, for example `192.168.0.0/24`.
 
 ## 2. Identify Local Network Ranges
 
@@ -84,11 +86,9 @@ nmap -sn -PR 192.168.1.0/24
 
 Expected output gives you live IP addresses and sometimes hostnames or MAC vendor hints.
 
-Document discovered hosts as assets in SignalHound:
+Run an `internal_it_quick` assessment from the GUI for the scoped CIDR. SignalHound imports only hosts with open services or reliable host-discovery reasons. Docker/NAT-only pseudo-up responses such as `reset`, `user-set`, and `unknown-response` without open services are ignored.
 
-- `asset_type`: `IP` or `HOST`
-- `source`: `manual-local-recon`
-- `known_asset`: true only if the host is authorized and expected
+If you need fuller inventory coverage, run host-based discovery outside Docker and document missing devices manually until a dedicated LAN scanner node exists.
 
 ## 4. Detect Exposed Services
 
@@ -170,32 +170,29 @@ Do not create a finding just because a host exists.
 Current app support:
 
 - Organizations
-- External scopes and CIDR scope records
+- External and internal IT scopes
 - Assets
 - Services
 - Findings
 - Scanner jobs for external recon adapters
+- Internal IT quick assessments with conservative Nmap import
 - Run output and import summaries
 
 Not implemented yet:
 
-- Internal scan zones
 - Internal scanner nodes
 - Network segmentation validation
-- Internal recon automation
 - Scheduled recurring internal scans
 
 ## 8. Recommended Future Epic
 
-Add an `INTERNAL_IT` recon epic with:
+Future internal recon work:
 
-- explicit internal scope creation
-- local CIDR scope enforcement
-- safe Nmap host discovery adapter
-- safe Nmap service discovery adapter
+- local scanner node outside Docker NAT
+- safe ARP/neighbor-table host discovery
 - optional small Nuclei web profile for internal HTTP services
 - scanner execution profile labels such as `local_discovery`, `local_service_discovery`, and `local_web_checks`
 - clear rate limits and default timeouts
 - UI warning that internal scanning is only for authorized local networks
 
-Do not reuse the current external scanner flow blindly for internal networks. Internal recon needs its own scan-zone-aware scope checks and safer defaults.
+Do not reuse external scanner flow blindly for internal networks. Internal recon needs scan-zone-aware scope checks, safer defaults, and a scanner placement that can actually see the LAN.

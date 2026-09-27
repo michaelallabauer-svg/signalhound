@@ -118,7 +118,7 @@ def test_nmap_adapter_ignores_unknown_response_hosts_without_open_services() -> 
     assert [service["asset_value"] for service in normalized.services] == ["192.168.1.43"]
 
 
-def test_nmap_adapter_requires_open_service_for_private_cidr_hosts() -> None:
+def test_nmap_adapter_keeps_reliable_discovery_hosts_for_private_cidr() -> None:
     raw_output = """
     <nmaprun args="/usr/bin/nmap -oX - -n -p 80,443 192.168.0.0/24">
       <host>
@@ -140,13 +140,22 @@ def test_nmap_adapter_requires_open_service_for_private_cidr_hosts() -> None:
           </port>
         </ports>
       </host>
+      <host>
+        <status state="up" reason="echo-reply"/>
+        <address addr="192.168.0.44" addrtype="ipv4"/>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="closed"/>
+          </port>
+        </ports>
+      </host>
     </nmaprun>
     """
 
     adapter = NmapAdapter()
     normalized = adapter.normalize_result(adapter.parse_result(raw_output))
 
-    assert [asset["value"] for asset in normalized.assets] == ["192.168.0.43"]
+    assert [asset["value"] for asset in normalized.assets] == ["192.168.0.43", "192.168.0.44"]
     assert [service["asset_value"] for service in normalized.services] == ["192.168.0.43"]
 
 
