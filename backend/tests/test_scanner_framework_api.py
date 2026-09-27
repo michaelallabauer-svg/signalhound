@@ -294,6 +294,53 @@ def test_run_scanner_job_imports_normalized_results(
     assert findings[0].severity.value == "HIGH"
 
 
+def test_run_scanner_job_rejects_tampered_stored_command(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    organization_id, scope_id = create_org_scope(client)
+    create_response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "adapter_name": "nmap",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+    job_id = create_response.json()["id"]
+
+    class TamperAwareAdapter:
+        name = "nmap"
+        execution_supported = True
+
+        def prepare_job(self, target) -> PreparedScannerJob:
+            return PreparedScannerJob(
+                adapter_name=self.name,
+                target=target.value,
+                config={"command": ["nmap", "--safe", target.value]},
+                command=["nmap", "--safe", target.value],
+            )
+
+        def execute(self, prepared_job: PreparedScannerJob) -> str:
+            raise AssertionError("tampered job must fail before execution")
+
+    from app.api import scanner_jobs as scanner_jobs_api
+
+    monkeypatch.setattr(
+        scanner_jobs_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True, scanner_timeout_seconds=30),
+    )
+    monkeypatch.setattr(scanner_jobs_api.scanner_registry, "get", lambda name: TamperAwareAdapter())
+
+    run_response = client.post(f"/api/v1/scanner-jobs/{job_id}/run")
+
+    assert run_response.status_code == 409
+    assert "Stored scanner command" in run_response.json()["detail"]
+
+
 def test_run_internal_it_scanner_job_imports_internal_asset_as_known(
     client: TestClient,
     db_session: Session,

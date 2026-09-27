@@ -18,4 +18,10 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     imports=("app.workers.assessment_tasks",),
+    worker_concurrency=settings.celery_worker_concurrency,
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    task_time_limit=settings.celery_task_time_limit_seconds,
+    task_soft_time_limit=settings.celery_task_soft_time_limit_seconds,
 )

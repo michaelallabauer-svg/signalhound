@@ -13,6 +13,7 @@ from app.api.scopes import router as scopes_router
 from app.api.services import router as services_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.security import RequestBodySizeLimitMiddleware
 
 
 def create_app() -> FastAPI:
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     logger = get_logger(__name__)
 
     app = FastAPI(title=settings.app_name)
+    app.add_middleware(RequestBodySizeLimitMiddleware, max_body_bytes=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

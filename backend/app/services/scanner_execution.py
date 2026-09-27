@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 import ipaddress
 from typing import Any
@@ -16,7 +16,7 @@ from app.repositories.findings import observe_finding
 from app.repositories.scanner_jobs import set_scanner_job_status
 from app.repositories.scopes import get_scope
 from app.repositories.services import find_service, observe_service
-from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, ScannerAdapter
+from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, ScannerAdapter, ScannerTarget
 from app.services.audit import record_audit_event
 from app.services.scope_validation import ScopeValidator
 
@@ -33,13 +33,7 @@ def run_scanner_job(
     if not adapter.execution_supported:
         raise ValueError("Scanner adapter execution is not supported")
 
-    prepared_job = PreparedScannerJob(
-        adapter_name=job.adapter_name,
-        target=job.target,
-        config=job.prepared_config,
-        command=list(job.prepared_config.get("command", [])),
-        timeout_seconds=timeout_seconds,
-    )
+    prepared_job = _prepare_execution_job(job=job, adapter=adapter, timeout_seconds=timeout_seconds)
 
     job.started_at = datetime.now(UTC)
     set_scanner_job_status(job, ScannerJobStatus.RUNNING)
@@ -160,6 +154,30 @@ def import_normalized_result(db: Session, *, job: ScannerJob, result: Normalized
             remediation=finding_data.get("remediation"),
             evidence=dict(finding_data.get("evidence", {})),
         )
+
+
+def _prepare_execution_job(*, job: ScannerJob, adapter: ScannerAdapter, timeout_seconds: int) -> PreparedScannerJob:
+    prepare_job = getattr(adapter, "prepare_job", None)
+    if not callable(prepare_job):
+        return PreparedScannerJob(
+            adapter_name=job.adapter_name,
+            target=job.target,
+            config=job.prepared_config,
+            command=list(job.prepared_config.get("command", [])),
+            timeout_seconds=timeout_seconds,
+        )
+
+    scanner_target = ScannerTarget(
+        value=job.target,
+        scope_id=job.scope_id,
+        organization_id=job.organization_id,
+    )
+    prepared_job = prepare_job(scanner_target)
+    stored_command = list(job.prepared_config.get("command", []))
+    if prepared_job.command != stored_command:
+        raise ValueError("Stored scanner command does not match adapter-prepared command")
+
+    return replace(prepared_job, timeout_seconds=timeout_seconds)
 
 
 def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[str, Any]) -> Asset:

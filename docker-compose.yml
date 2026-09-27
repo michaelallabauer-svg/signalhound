@@ -7,6 +7,10 @@ services:
       POSTGRES_PASSWORD: signalhound
     ports:
       - "5432:5432"
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -19,6 +23,10 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,8 +46,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       SCANNER_EXECUTION_ENABLED: ${SCANNER_EXECUTION_ENABLED:-false}
       SCANNER_TIMEOUT_SECONDS: ${SCANNER_TIMEOUT_SECONDS:-300}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-1}
+      CELERY_TASK_TIME_LIMIT_SECONDS: ${CELERY_TASK_TIME_LIMIT_SECONDS:-900}
+      CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: ${CELERY_TASK_SOFT_TIME_LIMIT_SECONDS:-840}
     ports:
       - "8010:8000"
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,11 +76,19 @@ services:
       REDIS_URL: redis://redis:6379/0
       SCANNER_EXECUTION_ENABLED: ${SCANNER_EXECUTION_ENABLED:-false}
       SCANNER_TIMEOUT_SECONDS: ${SCANNER_TIMEOUT_SECONDS:-300}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-1}
+      CELERY_TASK_TIME_LIMIT_SECONDS: ${CELERY_TASK_TIME_LIMIT_SECONDS:-900}
+      CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: ${CELERY_TASK_SOFT_TIME_LIMIT_SECONDS:-840}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=INFO
 
   frontend:
@@ -74,6 +98,10 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8010/api/v1}
     ports:
       - "8011:80"
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
     depends_on:
       - backend
 

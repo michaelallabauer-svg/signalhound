@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, **Epic 10: Assessment Run Visibility**, and **Epic 11: Internal IT Recon Foundation**.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, **Epic 5: External Discovery**, **Epic 6: Finding Normalization and Management**, **Epic 7: Change Detection**, **Epic 8: Basic Security Dashboard / UI**, **Epic 9: Scan Automation Foundation**, **Epic 10: Assessment Run Visibility**, **Epic 11: Internal IT Recon Foundation**, and **Epic 11.5: Production Hardening**.
 
 ## Epic 1 Deliverables
 
@@ -138,6 +138,18 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 
 Epic 11 does not implement credential checks, brute force, exploit execution, lateral movement, internal OT reconnaissance, or distributed scanner nodes.
 
+## Epic 11.5 Deliverables
+
+- Post-Epic-11 roadmap captured as `docs/roadmap-post-epic-11.md`
+- Hardening review captured as `docs/hardening-epic-11-5.md`
+- Production CORS validation rejects wildcard origins
+- Configured request body size limit for API requests
+- Scanner execution revalidates stored scanner commands against adapter-prepared commands before execution
+- Scanner timeout and worker limit settings are bounded
+- Celery worker concurrency, prefetch, acknowledgement, and task time limits are explicitly configured
+- Docker Compose services use `no-new-privileges` and resource limits
+- Tests cover hardening settings, request-size rejection, and scanner command tamper rejection
+
 ## Operational Maintenance
 
 - Scopes are archived through soft deletion (`active=false`) so historical scan context remains auditable.
@@ -147,4 +159,4 @@ Epic 11 does not implement credential checks, brute force, exploit execution, la
 
 ## Security Boundary
 
-SignalHound is intended only for authorized security assessments. The current implementation performs no scanning, exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.
+SignalHound is intended only for authorized security assessments. Scanner execution is disabled by default and must remain scope-gated when enabled. The current implementation performs no exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.
