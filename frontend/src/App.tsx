@@ -703,34 +703,37 @@ function ScannersTab({
               </tr>
             </thead>
             <tbody>
-              {jobs.map((job) => (
-                <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
-                  <td>{job.adapter_name}</td>
-                  <td>
-                    <div className="job-target">{job.target}</div>
-                    <div className="job-detail">
-                      {runningJobId === job.id
-                        ? "Scanner is running. Results will refresh when it finishes."
-                        : formatJobDetail(job)}
-                    </div>
-                  </td>
-                  <td>
-                    <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
-                  </td>
-                  <td>
-                    <button
-                      className="run-button"
-                      disabled={runningJobId !== null}
-                      onClick={() => void handleRun(job.id)}
-                      title="Run scanner job"
-                      type="button"
-                    >
-                      <Play size={16} />
-                      Run
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {jobs.map((job) => {
+                const canRun = job.status === "PREPARED" && runningJobId === null;
+                return (
+                  <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
+                    <td>{job.adapter_name}</td>
+                    <td>
+                      <div className="job-target">{job.target}</div>
+                      <div className="job-detail">
+                        {runningJobId === job.id
+                          ? "Scanner is running. Results will refresh when it finishes."
+                          : formatJobDetail(job)}
+                      </div>
+                    </td>
+                    <td>
+                      <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
+                    </td>
+                    <td>
+                      <button
+                        className="run-button"
+                        disabled={!canRun}
+                        onClick={() => void handleRun(job.id)}
+                        title={job.status === "PREPARED" ? "Run scanner job" : "Only prepared jobs can be run"}
+                        type="button"
+                      >
+                        <Play size={16} />
+                        {job.status === "PREPARED" ? "Run" : "Done"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
