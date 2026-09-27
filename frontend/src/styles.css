@@ -229,6 +229,13 @@ th {
   padding: 0 10px;
 }
 
+.scanner-workbench {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(420px, 0.85fr) minmax(380px, 1.15fr);
+}
+
 .scanner-jobs-table {
   table-layout: fixed;
 }
@@ -248,9 +255,38 @@ th {
   width: 90px;
 }
 
+.scanner-jobs-table.compact th,
+.scanner-jobs-table.compact td {
+  padding: 8px 6px;
+}
+
+.scanner-jobs-table.compact th:nth-child(1),
+.scanner-jobs-table.compact td:nth-child(1) {
+  width: 82px;
+}
+
+.scanner-jobs-table.compact th:nth-child(3),
+.scanner-jobs-table.compact td:nth-child(3) {
+  width: 112px;
+}
+
+.scanner-jobs-table.compact th:nth-child(4),
+.scanner-jobs-table.compact td:nth-child(4) {
+  width: 76px;
+}
+
+.job-target {
+  color: #1d2428;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .job-detail {
   color: #4d5a55;
+  font-size: 12px;
   line-height: 1.35;
+  margin-top: 4px;
   overflow-wrap: anywhere;
 }
 
@@ -303,9 +339,14 @@ th {
   line-height: 1.5;
   margin: 0;
   max-height: 360px;
+  min-height: 360px;
   overflow: auto;
   padding: 12px;
   white-space: pre-wrap;
+}
+
+.run-output-panel {
+  min-width: 0;
 }
 
 .stack {
@@ -504,6 +545,7 @@ th {
 
   .metric-grid,
   .two-column,
+  .scanner-workbench,
   .summary-strip,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -558,6 +600,7 @@ th {
   .topbar-actions label,
   .metric-grid,
   .two-column,
+  .scanner-workbench,
   .summary-strip,
   .form-grid,
   .inline-form {

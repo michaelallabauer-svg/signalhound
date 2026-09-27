@@ -690,53 +690,56 @@ function ScannersTab({
           </button>
         </form>
       </section>
-      <section className="panel">
-        <PanelHeader title="Scanner jobs" />
-        <table className="scanner-jobs-table">
-          <thead>
-            <tr>
-              <th>Adapter</th>
-              <th>Target</th>
-              <th>Status</th>
-              <th>Detail</th>
-              <th>Run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((job) => (
-              <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
-                <td>{job.adapter_name}</td>
-                <td>{job.target}</td>
-                <td>
-                  <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
-                </td>
-                <td className="job-detail">
-                  {runningJobId === job.id
-                    ? "Scanner is running. Results will refresh when it finishes."
-                    : formatJobDetail(job)}
-                </td>
-                <td>
-                  <button
-                    className="run-button"
-                    disabled={runningJobId !== null}
-                    onClick={() => void handleRun(job.id)}
-                    title="Run scanner job"
-                    type="button"
-                  >
-                    <Play size={16} />
-                    Run
-                  </button>
-                </td>
+      <div className="scanner-workbench">
+        <section className="panel">
+          <PanelHeader title="Scanner jobs" />
+          <table className="scanner-jobs-table compact">
+            <thead>
+              <tr>
+                <th>Adapter</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Run</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
-      </section>
-      <section className="panel">
-        <PanelHeader title="Run output" />
-        <pre className="run-output">{runOutput}</pre>
-      </section>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
+                  <td>{job.adapter_name}</td>
+                  <td>
+                    <div className="job-target">{job.target}</div>
+                    <div className="job-detail">
+                      {runningJobId === job.id
+                        ? "Scanner is running. Results will refresh when it finishes."
+                        : formatJobDetail(job)}
+                    </div>
+                  </td>
+                  <td>
+                    <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
+                  </td>
+                  <td>
+                    <button
+                      className="run-button"
+                      disabled={runningJobId !== null}
+                      onClick={() => void handleRun(job.id)}
+                      title="Run scanner job"
+                      type="button"
+                    >
+                      <Play size={16} />
+                      Run
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
+        </section>
+        <section className="panel run-output-panel">
+          <PanelHeader title="Run output" />
+          <pre className="run-output">{runOutput}</pre>
+        </section>
+      </div>
     </section>
   );
 }
