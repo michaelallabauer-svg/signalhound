@@ -42,6 +42,11 @@ button:hover {
   background: #18574f;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 input,
 select {
   background: #ffffff;
@@ -186,6 +191,11 @@ th {
   width: 32px;
 }
 
+.run-button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
 .stack {
   display: grid;
   gap: 18px;
@@ -294,6 +304,12 @@ th {
   background: #fff0ed;
   border: 1px solid #e5b1a8;
   color: #8f2e24;
+}
+
+.notice.pending {
+  background: #eef5ff;
+  border: 1px solid #b8cee8;
+  color: #264d78;
 }
 
 .empty-state,

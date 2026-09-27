@@ -60,6 +60,7 @@ export type ScannerJob = {
   adapter_name: string;
   target: string;
   status: "PREPARED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  error_message: string | null;
   requested_at: string;
 };
 
@@ -104,7 +105,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Request failed with HTTP ${response.status}`);
+    const detail =
+      typeof body.detail === "string"
+        ? body.detail
+        : body.detail
+          ? JSON.stringify(body.detail)
+          : `Request failed with HTTP ${response.status}`;
+    throw new Error(detail);
   }
 
   if (response.status === 204) {
@@ -133,7 +140,13 @@ export const api = {
   scannerAdapters: () => request<ScannerAdapter[]>("/scanner-adapters"),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),
   createScannerJob: (payload: Record<string, unknown>) => request<ScannerJob>("/scanner-jobs", post(payload)),
-  runScannerJob: (jobId: number) => request<ScannerJob>(`/scanner-jobs/${jobId}/run`, post({})),
+  runScannerJob: async (jobId: number) => {
+    const job = await request<ScannerJob>(`/scanner-jobs/${jobId}/run`, post({}));
+    if (job.status === "FAILED") {
+      throw new Error(job.error_message ?? "Scanner job failed");
+    }
+    return job;
+  },
   changeSets: (organizationId: number) => request<ChangeSet[]>(`/change-sets?organization_id=${organizationId}`),
   createChangeSet: (payload: Record<string, unknown>) => request<ChangeSet>("/change-sets/compare", post(payload)),
 };

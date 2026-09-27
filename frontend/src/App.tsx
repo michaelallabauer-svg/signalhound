@@ -59,6 +59,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const selectedOrganization = state.organizations.find((organization) => organization.id === selectedOrgId) ?? null;
 
@@ -125,15 +126,22 @@ export function App() {
     };
   }, [state]);
 
-  async function withAction(action: () => Promise<unknown>, success: string) {
+  async function withAction(action: () => Promise<unknown>, success: string, progress?: string): Promise<boolean> {
     setError(null);
-    setNotice(null);
+    setNotice(progress ?? null);
+    setBusyAction(progress ?? "Working");
     try {
       await action();
       setNotice(success);
       await refresh();
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unknown error");
+      setNotice(null);
+      await refresh();
+      return false;
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -196,7 +204,8 @@ export function App() {
           </div>
         </header>
 
-        {notice && <div className="notice success">{notice}</div>}
+        {busyAction && <div className="notice pending">{busyAction}</div>}
+        {!busyAction && notice && <div className="notice success">{notice}</div>}
         {error && <div className="notice error">{error}</div>}
 
         {loading ? (
@@ -237,7 +246,13 @@ export function App() {
                 adapters={state.scannerAdapters}
                 jobs={state.scannerJobs}
                 onPrepare={(payload) => withAction(() => api.createScannerJob(payload), "Scanner job prepared")}
-                onRun={(jobId) => withAction(() => api.runScannerJob(jobId), "Scanner job executed")}
+                onRun={(jobId) =>
+                  withAction(
+                    () => api.runScannerJob(jobId),
+                    "Scanner job finished",
+                    "Scanner job is running. This can take a while.",
+                  )
+                }
               />
             )}
             {activeTab === "changes" && selectedOrgId && (
@@ -555,6 +570,14 @@ function ScannersTab({
   onRun: (jobId: number) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({ scope_id: "", adapter_name: "nmap", target: "" });
+  const [runningJobId, setRunningJobId] = useState<number | null>(null);
+
+  async function handleRun(jobId: number) {
+    setRunningJobId(jobId);
+    await onRun(jobId);
+    setRunningJobId(null);
+  }
+
   return (
     <section className="stack">
       <section className="panel">
@@ -618,10 +641,17 @@ function ScannersTab({
               <tr key={job.id}>
                 <td>{job.adapter_name}</td>
                 <td>{job.target}</td>
-                <td>{job.status}</td>
+                <td>{runningJobId === job.id ? "RUNNING..." : job.status}</td>
                 <td>
-                  <button className="icon-button compact" onClick={() => void onRun(job.id)} title="Run scanner job" type="button">
+                  <button
+                    className="run-button"
+                    disabled={runningJobId !== null}
+                    onClick={() => void handleRun(job.id)}
+                    title="Run scanner job"
+                    type="button"
+                  >
                     <Play size={16} />
+                    Run
                   </button>
                 </td>
               </tr>
