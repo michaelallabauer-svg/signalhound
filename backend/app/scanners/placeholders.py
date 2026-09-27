@@ -181,7 +181,7 @@ class AmassAdapter(PlaceholderScannerAdapter):
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)
-        command = ["amass", "enum", "-json", "-", "-d", target.value]
+        command = ["amass", "enum", "-nocolor", "-timeout", "1", "-d", target.value]
         return PreparedScannerJob(
             adapter_name=self.name,
             target=target.value,
@@ -192,7 +192,8 @@ class AmassAdapter(PlaceholderScannerAdapter):
                 "scope_id": target.scope_id,
                 "organization_id": target.organization_id,
                 "command": command,
-                "output_format": "jsonl",
+                "output_format": "text",
+                "profile": "passive_subdomain_discovery",
             },
         )
 
@@ -202,8 +203,15 @@ class AmassAdapter(PlaceholderScannerAdapter):
     def parse_result(self, raw_output: str) -> Any:
         records = []
         for line in raw_output.splitlines():
-            if line.strip():
-                records.append(json.loads(line))
+            value = line.strip().lower().rstrip(".")
+            if not value:
+                continue
+            if value.startswith("{"):
+                records.append(json.loads(value))
+                continue
+            if " " in value or value.startswith(("[", "usage:", "-")):
+                continue
+            records.append({"name": value})
         return records
 
     def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:

@@ -63,6 +63,31 @@ def test_amass_adapter_parses_json_lines() -> None:
     assert normalized.assets[0]["metadata"]["addresses"] == [{"ip": "203.0.113.10"}]
 
 
+def test_amass_adapter_prepares_v5_plain_text_command() -> None:
+    adapter = AmassAdapter()
+    prepared = adapter.prepare_job(ScannerTarget(value="example.com", scope_id=1, organization_id=1))
+
+    assert prepared.command == ["amass", "enum", "-nocolor", "-timeout", "1", "-d", "example.com"]
+    assert prepared.config["output_format"] == "text"
+    assert prepared.config["profile"] == "passive_subdomain_discovery"
+
+
+def test_amass_adapter_parses_plain_text_lines() -> None:
+    raw_output = """
+    www.example.com
+    api.example.com
+    [INF] ignored status line
+    Usage: ignored help text
+    www.example.com
+    """
+
+    adapter = AmassAdapter()
+    parsed = adapter.parse_result(raw_output)
+    normalized = adapter.normalize_result(parsed)
+
+    assert [asset["value"] for asset in normalized.assets] == ["www.example.com", "api.example.com"]
+
+
 def test_nuclei_adapter_parses_findings() -> None:
     raw_output = """
     {"template-id":"exposed-panel","matched-at":"https://www.example.com/panel","host":"https://www.example.com","type":"http","info":{"name":"Exposed panel","severity":"high","description":"Panel exposed","remediation":"Restrict access","metadata":{"cwe":"CWE-200"}}}
