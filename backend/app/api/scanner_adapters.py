@@ -13,8 +13,7 @@ def list_all() -> list[ScannerAdapterRead]:
             name=adapter.name,
             display_name=adapter.display_name,
             supported_target_notes=adapter.supported_target_notes,
-            execution_available=False,
+            execution_available=adapter.execution_supported,
         )
         for adapter in scanner_registry.list_adapters()
     ]
-

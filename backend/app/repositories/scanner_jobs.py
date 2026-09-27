@@ -43,3 +43,19 @@ def list_scanner_jobs(
 def get_scanner_job(db: Session, job_id: int) -> ScannerJob | None:
     return db.get(ScannerJob, job_id)
 
+
+def set_scanner_job_status(
+    job: ScannerJob,
+    status: ScannerJobStatus,
+    *,
+    raw_output: str | None = None,
+    normalized_result: dict | None = None,
+    error_message: str | None = None,
+) -> ScannerJob:
+    job.status = status
+    if raw_output is not None:
+        job.raw_output = raw_output
+    if normalized_result is not None:
+        job.normalized_result = normalized_result
+    job.error_message = error_message
+    return job

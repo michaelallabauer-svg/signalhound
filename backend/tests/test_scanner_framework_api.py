@@ -1,9 +1,14 @@
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.asset import Asset
 from app.models.audit_log import AuditLog
 from app.models.scanner_job import ScannerJob
+from app.models.service import Service
+from app.scanners.base import NormalizedScannerResult, PreparedScannerJob
 
 
 def create_org_scope(client: TestClient) -> tuple[int, int]:
@@ -28,9 +33,11 @@ def test_scanner_adapters_are_listed(client: TestClient) -> None:
     response = client.get("/api/v1/scanner-adapters")
 
     assert response.status_code == 200
-    names = {adapter["name"] for adapter in response.json()}
-    assert names == {"nmap", "amass", "nuclei"}
-    assert all(adapter["execution_available"] is False for adapter in response.json())
+    adapters = {adapter["name"]: adapter for adapter in response.json()}
+    assert set(adapters) == {"nmap", "amass", "nuclei"}
+    assert adapters["nmap"]["execution_available"] is True
+    assert adapters["amass"]["execution_available"] is True
+    assert adapters["nuclei"]["execution_available"] is False
 
 
 def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_session: Session) -> None:
@@ -51,7 +58,7 @@ def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_se
     assert job["adapter_name"] == "nmap"
     assert job["target"] == "www.example.com"
     assert job["status"] == "PREPARED"
-    assert job["prepared_config"]["execution"] == "not_implemented"
+    assert job["prepared_config"]["command"] == ["nmap", "-oX", "-", "-sV", "www.example.com"]
 
     stored_job = db_session.get(ScannerJob, job["id"])
     assert stored_job is not None
@@ -99,3 +106,116 @@ def test_prepare_scanner_job_rejects_unknown_adapter(client: TestClient) -> None
 
     assert response.status_code == 404
 
+
+def test_run_scanner_job_is_disabled_by_default(client: TestClient) -> None:
+    organization_id, scope_id = create_org_scope(client)
+    create_response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "adapter_name": "nmap",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+
+    run_response = client.post(f"/api/v1/scanner-jobs/{create_response.json()['id']}/run")
+
+    assert run_response.status_code == 409
+    assert "disabled" in run_response.json()["detail"]
+
+
+def test_run_scanner_job_imports_normalized_results(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    organization_id, scope_id = create_org_scope(client)
+    create_response = client.post(
+        "/api/v1/scanner-jobs",
+        json={
+            "organization_id": organization_id,
+            "scope_id": scope_id,
+            "adapter_name": "nmap",
+            "target": "www.example.com",
+        },
+    )
+    assert create_response.status_code == 201
+    job_id = create_response.json()["id"]
+
+    class FakeAdapter:
+        name = "nmap"
+        execution_supported = True
+
+        def execute(self, prepared_job: PreparedScannerJob) -> str:
+            assert prepared_job.target == "www.example.com"
+            return "raw-result"
+
+        def parse_result(self, raw_output: str) -> dict:
+            return {"raw": raw_output}
+
+        def normalize_result(self, parsed_result: dict) -> NormalizedScannerResult:
+            return NormalizedScannerResult(
+                assets=[
+                    {
+                        "asset_type": "SUBDOMAIN",
+                        "value": "www.example.com",
+                        "source": "nmap",
+                        "metadata": {"source": "fake"},
+                    },
+                    {
+                        "asset_type": "HOST",
+                        "value": "outside.example.net",
+                        "source": "nmap",
+                        "metadata": {"source": "fake"},
+                    },
+                ],
+                services=[
+                    {
+                        "asset_type": "SUBDOMAIN",
+                        "asset_value": "www.example.com",
+                        "protocol": "TCP",
+                        "port": 443,
+                        "name": "https",
+                        "source": "nmap",
+                        "metadata": {"product": "fake"},
+                    }
+                ],
+                metadata={"parsed": parsed_result},
+            )
+
+    from app.api import scanner_jobs as scanner_jobs_api
+
+    monkeypatch.setattr(
+        scanner_jobs_api,
+        "get_settings",
+        lambda: SimpleNamespace(scanner_execution_enabled=True, scanner_timeout_seconds=30),
+    )
+    monkeypatch.setattr(scanner_jobs_api.scanner_registry, "get", lambda name: FakeAdapter())
+
+    run_response = client.post(f"/api/v1/scanner-jobs/{job_id}/run")
+
+    assert run_response.status_code == 200
+    job = run_response.json()
+    assert job["status"] == "COMPLETED"
+    assert job["raw_output"] == "raw-result"
+    assert job["normalized_result"]["metadata"] == {"parsed": {"raw": "raw-result"}}
+
+    assets = list(db_session.scalars(select(Asset).order_by(Asset.value)))
+    assert [asset.value for asset in assets] == ["outside.example.net", "www.example.com"]
+    in_scope_asset = next(asset for asset in assets if asset.value == "www.example.com")
+    out_of_scope_asset = next(asset for asset in assets if asset.value == "outside.example.net")
+    assert in_scope_asset.scope_id == scope_id
+    assert in_scope_asset.known_asset is True
+    assert out_of_scope_asset.scope_id is None
+    assert out_of_scope_asset.known_asset is False
+
+    services = list(db_session.scalars(select(Service)))
+    assert len(services) == 1
+    assert services[0].asset_id == in_scope_asset.id
+    assert services[0].port == 443
+
+    audit_actions = list(db_session.scalars(select(AuditLog.action).order_by(AuditLog.id)))
+    assert "scanner.started" in audit_actions
+    assert "scanner.completed" in audit_actions

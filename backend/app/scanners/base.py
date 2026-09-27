@@ -15,6 +15,8 @@ class PreparedScannerJob:
     adapter_name: str
     target: str
     config: dict[str, Any]
+    command: list[str] = field(default_factory=list)
+    timeout_seconds: int | None = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class ScannerAdapter(ABC):
     name: str
     display_name: str
     supported_target_notes: str
+    execution_supported: bool = False
 
     @abstractmethod
     def validate_target(self, target: ScannerTarget) -> None:
@@ -49,4 +52,3 @@ class ScannerAdapter(ABC):
     @abstractmethod
     def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:
         """Normalize adapter-specific parsed data into platform result objects."""
-

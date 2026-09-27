@@ -2,7 +2,7 @@
 
 SignalHound is an authorized external reconnaissance and exposure-management application.
 
-The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, and **Epic 4: Scanner Adapter Framework**. Later epics may add external discovery, findings, change detection, and a UI.
+The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, and **Epic 5: External Discovery**. Later epics may add findings, change detection, and a UI.
 
 ## Epic 1 Deliverables
 
@@ -55,6 +55,18 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Scope-gated scanner job preparation API
 - Audit events for prepared and rejected scanner jobs
 - Tests proving out-of-scope targets do not create scanner jobs
+
+## Epic 5 Deliverables
+
+- Scanner execution gate controlled by environment configuration
+- Shell-free external tool execution wrapper with timeout support
+- Nmap command preparation, XML parsing, and service normalization
+- Amass command preparation, JSONL parsing, and asset normalization
+- Scanner job execution endpoint
+- Scanner started/completed/failed audit events
+- Result import into asset and service inventory with observation history
+- Out-of-scope discoveries recorded as unscoped/unverified inventory instead of authorized targets
+- Tests proving disabled execution, scoped result import, and out-of-scope rejection behavior
 
 ## Security Boundary
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import get_settings
 from app.models.scope import ScanZone
 from app.repositories.organizations import get_organization
 from app.repositories.scanner_jobs import create_scanner_job, get_scanner_job, list_scanner_jobs
@@ -10,6 +11,7 @@ from app.schemas.scanner import ScannerJobCreate, ScannerJobRead
 from app.scanners.base import ScannerTarget
 from app.scanners.registry import scanner_registry
 from app.services.audit import record_audit_event
+from app.services.scanner_execution import run_scanner_job
 from app.services.scope_validation import ScopeValidator
 
 router = APIRouter(prefix="/scanner-jobs", tags=["scanner-jobs"])
@@ -105,3 +107,30 @@ def get(job_id: int, db: Session = Depends(get_db)) -> ScannerJobRead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scanner job not found")
     return job
 
+
+@router.post("/{job_id}/run", response_model=ScannerJobRead)
+def run(job_id: int, db: Session = Depends(get_db)) -> ScannerJobRead:
+    settings = get_settings()
+    if not settings.scanner_execution_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Scanner execution is disabled. Set SCANNER_EXECUTION_ENABLED=true to enable it.",
+        )
+
+    job = get_scanner_job(db, job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scanner job not found")
+
+    adapter = scanner_registry.get(job.adapter_name)
+    if adapter is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scanner adapter not found")
+
+    try:
+        run_scanner_job(db, job=job, adapter=adapter, timeout_seconds=settings.scanner_timeout_seconds)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    db.commit()
+    db.refresh(job)
+    return job

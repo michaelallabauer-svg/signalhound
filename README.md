@@ -1,8 +1,8 @@
 # SignalHound
 
-SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, and **Epic 4: Scanner Adapter Framework**.
+SignalHound is an authorized external reconnaissance and exposure-management platform. This repository currently implements **Epic 1: Foundation**, **Epic 2: Scope Management and Scope Enforcement**, **Epic 3: Asset Inventory and Historization**, **Epic 4: Scanner Adapter Framework**, and **Epic 5: External Discovery**.
 
-No active scanner execution, finding workflows, exploitation features, change detection, or frontend are implemented yet.
+No finding workflows, exploitation features, change detection, or frontend are implemented yet.
 
 ## Prerequisites
 
@@ -42,6 +42,8 @@ Important variables:
 - `LOG_LEVEL`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `SCANNER_EXECUTION_ENABLED`
+- `SCANNER_TIMEOUT_SECONDS`
 
 Never commit real credentials.
 
@@ -243,8 +245,32 @@ Important Epic 4 behavior:
 - Targets are scope-validated before any scanner adapter receives them.
 - Out-of-scope targets are rejected and audited.
 - Registered adapters: `nmap`, `amass`, `nuclei`.
-- Adapter execution is intentionally not implemented yet.
-- Scanner jobs are stored as `PREPARED` with prepared config, raw output fields, normalized result fields, and lifecycle timestamps for later epics.
+- Scanner jobs are stored as `PREPARED` with prepared config, raw output fields, normalized result fields, and lifecycle timestamps.
+
+## External Discovery
+
+Scanner execution is disabled by default. Enable it only for authorized assessments:
+
+```bash
+SCANNER_EXECUTION_ENABLED=true docker compose up --build
+```
+
+Run a prepared scanner job:
+
+```bash
+curl -X POST http://localhost:8010/api/v1/scanner-jobs/1/run
+```
+
+Epic 5 behavior:
+
+- `nmap` execution uses a shell-free subprocess command plan: `nmap -oX - -sV <target>`.
+- `amass` execution uses JSONL output: `amass enum -json - -d <target>`.
+- External scanner binaries must be installed in the backend container/environment before execution can succeed.
+- Results are parsed and normalized into assets/services.
+- In-scope discovered assets are linked to the scope and marked known.
+- Out-of-scope discovered assets may be recorded without `scope_id` as discovered/unverified inventory.
+- Services are attached to normalized assets and historized.
+- `nuclei` remains registered but execution is deferred to Epic 6 because it creates findings.
 
 ## Implemented Scope
 
@@ -271,10 +297,11 @@ Implemented:
 - Asset and service observation history
 - Scanner adapter contract and registry
 - Scope-gated scanner job preparation
+- Scope-gated external discovery execution for Nmap and Amass
+- Discovery result import into asset and service history
 
 Deferred to later epics:
 
-- External discovery
 - Finding management
 - Change detection
 - Frontend

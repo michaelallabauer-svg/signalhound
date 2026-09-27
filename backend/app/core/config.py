@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "postgresql+psycopg://signalhound:signalhound@localhost:5432/signalhound"
     redis_url: str = "redis://localhost:6379/0"
+    scanner_execution_enabled: bool = False
+    scanner_timeout_seconds: int = 300
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -16,4 +18,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
