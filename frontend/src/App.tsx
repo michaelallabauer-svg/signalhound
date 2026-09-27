@@ -487,8 +487,15 @@ function FindingsTab({
   onCreate: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({ asset_id: "", title: "", severity: "LOW", source: "manual" });
+  const scannerFindings = findings.filter((finding) => finding.source !== "manual");
+  const manualFindings = findings.length - scannerFindings.length;
   return (
     <section className="stack">
+      <section className="summary-strip">
+        <SummaryItem label="Scanner findings" value={scannerFindings.length} />
+        <SummaryItem label="Manual findings" value={manualFindings} />
+        <SummaryItem label="Total findings" value={findings.length} />
+      </section>
       <section className="panel">
         <PanelHeader title="Record finding" />
         <form
@@ -536,17 +543,27 @@ function FindingsTab({
       <section className="panel">
         <PanelHeader title="Findings" />
         <SimpleTable
-          columns={["Title", "Severity", "Status", "Asset"]}
+          columns={["Title", "Severity", "Status", "Source", "Asset"]}
           rows={findings.map((finding) => [
             finding.title,
             finding.severity,
             finding.status,
+            finding.source,
             assets.find((asset) => asset.id === finding.asset_id)?.value ?? String(finding.asset_id),
           ])}
-          empty="No findings"
+          empty="No findings. Scanner findings will appear here when Nuclei imports a matched template."
         />
       </section>
     </section>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="summary-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -684,7 +701,7 @@ function StatusPill({ status }: { status: ScannerJob["status"] | "RUNNING" }) {
 
 function summarizeJob(job: ScannerJob) {
   if (job.status === "COMPLETED") {
-    return "Completed successfully";
+    return `Completed successfully. ${formatNormalizedSummary(job)}`;
   }
   if (job.status === "PREPARED") {
     return "Ready to run";
@@ -719,6 +736,7 @@ function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
     `Adapter: ${job.adapter_name}`,
     `Target: ${job.target}`,
     `Status: ${job.status}`,
+    `Imported: ${formatNormalizedSummary(job)}`,
     `Duration observed in UI: ${durationSeconds}s`,
     `Command: ${command}`,
   ];
@@ -729,6 +747,19 @@ function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
 
   const output = job.raw_output ?? JSON.stringify(job.normalized_result ?? {}, null, 2);
   return [...header, "", trimOutput(output)].join("\n");
+}
+
+function formatNormalizedSummary(job: ScannerJob) {
+  const result = job.normalized_result;
+  const assets = countNormalizedItems(result, "assets");
+  const services = countNormalizedItems(result, "services");
+  const findings = countNormalizedItems(result, "findings");
+  return `${assets} assets, ${services} services, ${findings} findings`;
+}
+
+function countNormalizedItems(result: Record<string, unknown> | null, key: "assets" | "services" | "findings") {
+  const value = result?.[key];
+  return Array.isArray(value) ? value.length : 0;
 }
 
 function trimOutput(output: string) {

@@ -276,6 +276,35 @@ th {
   gap: 18px;
 }
 
+.summary-strip {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.summary-item {
+  background: #ffffff;
+  border: 1px solid #dfe5e1;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.summary-item span {
+  color: #66726d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.summary-item strong {
+  color: #1d2428;
+  font-size: 22px;
+  line-height: 1;
+}
+
 .panel {
   background: #ffffff;
   border: 1px solid #dfe5e1;
@@ -424,6 +453,7 @@ th {
 
   .metric-grid,
   .two-column,
+  .summary-strip,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -470,6 +500,7 @@ th {
   .topbar-actions label,
   .metric-grid,
   .two-column,
+  .summary-strip,
   .form-grid,
   .inline-form {
     grid-template-columns: 1fr;
