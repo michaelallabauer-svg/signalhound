@@ -49,7 +49,7 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 
 - Scanner adapter base contract
 - Adapter registry
-- Placeholder registrations for `nmap`, `amass`, and `nuclei`
+- Placeholder registrations for `nmap`, `amass`, `nuclei`, and the internal `web_fingerprint` adapter
 - Scanner job table with lifecycle status and prepared configuration
 - Raw output and normalized result storage fields for future execution epics
 - Scope-gated scanner job preparation API
@@ -67,6 +67,15 @@ The current implementation covers **Epic 1: Foundation**, **Epic 2: Scope Manage
 - Result import into asset and service inventory with observation history
 - Out-of-scope discoveries recorded as unscoped/unverified inventory instead of authorized targets
 - Tests proving disabled execution, scoped result import, and out-of-scope rejection behavior
+
+## Epic 11.6 Deliverables
+
+- Assessment follow-up endpoint for preparing scoped web-fingerprinting jobs
+- `web_fingerprint` adapter for conservative HTTP(S) metadata collection
+- GUI action to prepare web-fingerprint jobs from completed assessment results
+- Service-observation metadata for HTTP status, title, server header, redirect, and TLS certificate context
+- Tests proving completed-assessment gating, scope filtering, duplicate skipping, and adapter normalization
+- Explicitly deferred mobile OS-version verification to future manual asset context or MDM/provider integrations
 
 ## Epic 6 Deliverables
 

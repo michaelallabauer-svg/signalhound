@@ -1,5 +1,5 @@
 from app.scanners.base import ScannerTarget
-from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter
+from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter, WebFingerprintAdapter
 
 
 def test_nmap_adapter_parses_open_services() -> None:
@@ -55,6 +55,8 @@ def test_nmap_adapter_keeps_external_pn_but_uses_discovery_for_private_targets()
 
     assert "-Pn" in external.command
     assert "-Pn" not in internal.command
+    assert external.config["scanned_ports"] == "80,443"
+    assert internal.config["scanned_ports"] == "80,443,3000,5000,7000,8000,8080,8443,9000,9443"
 
 
 def test_nmap_adapter_ignores_pn_user_set_hosts_without_open_services() -> None:
@@ -259,3 +261,64 @@ def test_nuclei_adapter_ignores_log_lines_when_parsing_jsonl() -> None:
 
     assert len(parsed) == 1
     assert parsed[0]["template-id"] == "wordpress-detect"
+
+
+def test_web_fingerprint_adapter_prepares_internal_probe_plan() -> None:
+    adapter = WebFingerprintAdapter()
+    prepared = adapter.prepare_job(ScannerTarget(value="192.168.0.1", scope_id=1, organization_id=1))
+
+    assert prepared.command == ["web_fingerprint", "192.168.0.1"]
+    assert prepared.config["profile"] == "web_fingerprint"
+    assert prepared.config["command"] == prepared.command
+    assert prepared.config["endpoints"] == [
+        {"scheme": "http", "host": "192.168.0.1", "port": 80},
+        {"scheme": "https", "host": "192.168.0.1", "port": 443},
+    ]
+
+
+def test_web_fingerprint_adapter_normalizes_service_observations() -> None:
+    adapter = WebFingerprintAdapter()
+    parsed = adapter.parse_result(
+        """
+        {
+          "target": "192.168.0.1",
+          "results": [
+            {
+              "url": "https://192.168.0.1",
+              "host": "192.168.0.1",
+              "scheme": "https",
+              "port": 443,
+              "http_status": 200,
+              "title": "Router Admin",
+              "server": "router-httpd",
+              "content_type": "text/html",
+              "tls_subject": "router.local"
+            }
+          ]
+        }
+        """
+    )
+    normalized = adapter.normalize_result(parsed)
+
+    assert normalized.services == [
+        {
+            "asset_type": "IP",
+            "asset_value": "192.168.0.1",
+            "protocol": "TCP",
+            "port": 443,
+            "name": "https",
+            "source": "web_fingerprint",
+            "metadata": {
+                "url": "https://192.168.0.1",
+                "http_status": 200,
+                "title": "Router Admin",
+                "server": "router-httpd",
+                "content_type": "text/html",
+                "redirect_location": None,
+                "tls_subject": "router.local",
+                "tls_issuer": None,
+                "tls_not_after": None,
+                "error": None,
+            },
+        }
+    ]

@@ -1,10 +1,10 @@
 from app.scanners.base import ScannerAdapter
-from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter
+from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter, WebFingerprintAdapter
 
 
 class ScannerRegistry:
     def __init__(self) -> None:
-        adapters: list[ScannerAdapter] = [NmapAdapter(), AmassAdapter(), NucleiAdapter()]
+        adapters: list[ScannerAdapter] = [NmapAdapter(), AmassAdapter(), NucleiAdapter(), WebFingerprintAdapter()]
         self._adapters = {adapter.name: adapter for adapter in adapters}
 
     def list_adapters(self) -> list[ScannerAdapter]:
@@ -15,4 +15,3 @@ class ScannerRegistry:
 
 
 scanner_registry = ScannerRegistry()
-

@@ -319,6 +319,11 @@ export function App() {
                   await refresh(selectedOrgId, false);
                   return result;
                 }}
+                onPrepareWebFingerprints={async (assessmentRunId) => {
+                  const result = await api.prepareWebFingerprints(assessmentRunId);
+                  await refresh(selectedOrgId, false);
+                  return result;
+                }}
                 onRun={async (jobId) => {
                   setError(null);
                   try {
@@ -881,6 +886,7 @@ function ScannersTab({
   onPrepare,
   onCreateAssessment,
   onPrepareVulnerabilityChecks,
+  onPrepareWebFingerprints,
   onRun,
   onRunStateChange,
   onArchiveAssessment,
@@ -896,6 +902,7 @@ function ScannersTab({
   onPrepare: (payload: Record<string, unknown>) => Promise<unknown>;
   onCreateAssessment: (payload: Record<string, unknown>) => Promise<boolean>;
   onPrepareVulnerabilityChecks: (assessmentRunId: number) => Promise<AssessmentFollowup>;
+  onPrepareWebFingerprints: (assessmentRunId: number) => Promise<AssessmentFollowup>;
   onRun: (jobId: number) => Promise<boolean>;
   onRunStateChange: (activity: ScannerActivity) => void;
   onArchiveAssessment: (assessmentRunId: number) => Promise<unknown>;
@@ -1003,6 +1010,23 @@ function ScannersTab({
       setAssessmentDetail(detail);
     } catch (caught) {
       setFollowupError(caught instanceof Error ? caught.message : "Could not prepare vulnerability checks");
+    } finally {
+      setFollowupBusy(false);
+    }
+  }
+
+  async function handlePrepareWebFingerprints(assessmentRunId: number) {
+    setFollowupBusy(true);
+    setFollowupError(null);
+    setFollowupNotice(null);
+    try {
+      const result = await onPrepareWebFingerprints(assessmentRunId);
+      setRunOutput(formatAssessmentFollowupOutput(result, "WEB FINGERPRINT PREPARATION"));
+      setFollowupNotice(formatAssessmentFollowupNotice(result, "web fingerprint"));
+      const detail = await api.assessmentDetail(assessmentRunId);
+      setAssessmentDetail(detail);
+    } catch (caught) {
+      setFollowupError(caught instanceof Error ? caught.message : "Could not prepare web fingerprinting");
     } finally {
       setFollowupBusy(false);
     }
@@ -1202,6 +1226,14 @@ function ScannersTab({
             <div className="assessment-actions">
               <button
                 disabled={assessmentDetail.status !== "COMPLETED" || followupBusy}
+                onClick={() => void handlePrepareWebFingerprints(assessmentDetail.id)}
+                type="button"
+              >
+                <Globe2 size={16} />
+                {followupBusy ? "Preparing" : "Prepare web fingerprinting"}
+              </button>
+              <button
+                disabled={assessmentDetail.status !== "COMPLETED" || followupBusy}
                 onClick={() => void handlePrepareVulnerabilityChecks(assessmentDetail.id)}
                 type="button"
               >
@@ -1387,8 +1419,12 @@ function formatStoredJobOutput(job: ScannerJob) {
 }
 
 function formatFollowupOutput(result: AssessmentFollowup) {
+  return formatAssessmentFollowupOutput(result, "FOLLOW-UP CHECK PREPARATION");
+}
+
+function formatAssessmentFollowupOutput(result: AssessmentFollowup, title: string) {
   const lines = [
-    "FOLLOW-UP CHECK PREPARATION",
+    title,
     `  Assessment: #${result.assessment_run_id}`,
     `  Adapter: ${result.adapter_name}`,
     "",
@@ -1407,25 +1443,29 @@ function formatFollowupOutput(result: AssessmentFollowup) {
     lines.push(
       "",
       "NEXT STEP",
-      "  No vulnerability checks were prepared because this assessment did not observe web services.",
+      `  No ${result.adapter_name} jobs were prepared because this assessment did not observe web services.`,
     );
   } else if (result.prepared_targets.length) {
-    lines.push("", "NEXT STEP", "  Start the prepared Nuclei jobs from the Scanner jobs table.");
+    lines.push("", "NEXT STEP", "  Start the prepared jobs from the Scanner jobs table.");
   }
 
   return lines.join("\n");
 }
 
 function formatFollowupNotice(result: AssessmentFollowup) {
+  return formatAssessmentFollowupNotice(result, "vulnerability check");
+}
+
+function formatAssessmentFollowupNotice(result: AssessmentFollowup, noun: string) {
   if (result.prepared_targets.length > 0) {
-    return `${result.prepared_targets.length} vulnerability check${
+    return `${result.prepared_targets.length} ${noun}${
       result.prepared_targets.length === 1 ? "" : "s"
-    } prepared. Start the prepared Nuclei job${result.prepared_targets.length === 1 ? "" : "s"} below.`;
+    } prepared. Start the prepared job${result.prepared_targets.length === 1 ? "" : "s"} below.`;
   }
   if (result.skipped_targets.length > 0) {
-    return "Vulnerability checks were already prepared for the observed web services.";
+    return `${noun[0].toUpperCase()}${noun.slice(1)}s were already prepared for the observed web services.`;
   }
-  return "No vulnerability checks were prepared because this assessment did not observe web services.";
+  return `No ${noun}s were prepared because this assessment did not observe web services.`;
 }
 
 function formatNormalizedSummary(job: ScannerJob) {

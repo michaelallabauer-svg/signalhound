@@ -1,11 +1,17 @@
 import json
+import html
+import http.client
 import ipaddress
 import shutil
+import socket
+import ssl
 import subprocess
 import xml.etree.ElementTree as ET
 from typing import Any
 
 from app.scanners.base import NormalizedScannerResult, PreparedScannerJob, ScannerAdapter, ScannerTarget
+
+INTERNAL_WEB_SERVICE_PORTS = "80,443,3000,5000,7000,8000,8080,8443,9000,9443"
 
 
 class ExternalToolScannerAdapter(ScannerAdapter):
@@ -85,6 +91,8 @@ class NmapAdapter(PlaceholderScannerAdapter):
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)
+        is_private_target = _is_private_ip_target(target.value)
+        scanned_ports = INTERNAL_WEB_SERVICE_PORTS if is_private_target else "80,443"
         command = [
             "nmap",
             "-oX",
@@ -98,10 +106,10 @@ class NmapAdapter(PlaceholderScannerAdapter):
             "--version-intensity",
             "2",
             "-p",
-            "80,443",
+            scanned_ports,
             target.value,
         ]
-        if not _is_private_ip_target(target.value):
+        if not is_private_target:
             command.insert(3, "-Pn")
         return PreparedScannerJob(
             adapter_name=self.name,
@@ -115,6 +123,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
                 "command": command,
                 "output_format": "xml",
                 "profile": "web_service_discovery",
+                "scanned_ports": scanned_ports,
             },
         )
 
@@ -382,3 +391,183 @@ class NucleiAdapter(PlaceholderScannerAdapter):
                 }
             )
         return NormalizedScannerResult(findings=findings, metadata={"adapter": self.name})
+
+
+class WebFingerprintAdapter(PlaceholderScannerAdapter):
+    name = "web_fingerprint"
+    display_name = "Web fingerprint"
+    supported_target_notes = "Conservative HTTP(S) metadata collection for a single scope-approved web host."
+    execution_supported = True
+
+    def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
+        self.validate_target(target)
+        command = ["web_fingerprint", target.value]
+        endpoints = [
+            {"scheme": "http", "host": target.value, "port": 80},
+            {"scheme": "https", "host": target.value, "port": 443},
+        ]
+        return PreparedScannerJob(
+            adapter_name=self.name,
+            target=target.value,
+            command=command,
+            config={
+                "adapter": self.name,
+                "target": target.value,
+                "scope_id": target.scope_id,
+                "organization_id": target.organization_id,
+                "command": command,
+                "output_format": "json",
+                "profile": "web_fingerprint",
+                "endpoints": endpoints,
+            },
+        )
+
+    def execute(self, prepared_job: PreparedScannerJob) -> str:
+        target = str(prepared_job.target).strip().lower().rstrip(".")
+        endpoints = prepared_job.config.get("endpoints", [])
+        if not isinstance(endpoints, list):
+            endpoints = []
+        if not endpoints:
+            endpoints = [{"scheme": "http", "host": target, "port": 80}, {"scheme": "https", "host": target, "port": 443}]
+
+        results = []
+        for endpoint in endpoints[:8]:
+            if not isinstance(endpoint, dict):
+                continue
+            host = str(endpoint.get("host", target)).strip().lower().rstrip(".")
+            if host != target:
+                continue
+            scheme = str(endpoint.get("scheme", "http")).lower()
+            if scheme not in {"http", "https"}:
+                continue
+            try:
+                port = int(endpoint.get("port", 443 if scheme == "https" else 80))
+            except (TypeError, ValueError):
+                continue
+            if port < 1 or port > 65535:
+                continue
+            results.append(_fingerprint_web_endpoint(host=host, scheme=scheme, port=port))
+        return json.dumps({"target": target, "results": results}, sort_keys=True)
+
+    def parse_result(self, raw_output: str) -> Any:
+        return json.loads(raw_output)
+
+    def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:
+        target = str(parsed_result.get("target", "")).strip().lower().rstrip(".")
+        services: list[dict[str, Any]] = []
+        for result in parsed_result.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            try:
+                port = int(result.get("port"))
+            except (TypeError, ValueError):
+                continue
+            scheme = str(result.get("scheme", "http")).lower()
+            service_name = "https" if scheme == "https" else "http"
+            services.append(
+                {
+                    "asset_type": "IP" if _looks_like_ip(target) else "HOST",
+                    "asset_value": target,
+                    "protocol": "TCP",
+                    "port": port,
+                    "name": service_name,
+                    "source": self.name,
+                    "metadata": {
+                        "url": result.get("url"),
+                        "http_status": result.get("http_status"),
+                        "title": result.get("title"),
+                        "server": result.get("server"),
+                        "content_type": result.get("content_type"),
+                        "redirect_location": result.get("redirect_location"),
+                        "tls_subject": result.get("tls_subject"),
+                        "tls_issuer": result.get("tls_issuer"),
+                        "tls_not_after": result.get("tls_not_after"),
+                        "error": result.get("error"),
+                    },
+                }
+            )
+        return NormalizedScannerResult(services=services, metadata={"adapter": self.name})
+
+
+def _fingerprint_web_endpoint(*, host: str, scheme: str, port: int) -> dict[str, Any]:
+    url = f"{scheme}://{host}" if port in {80, 443} else f"{scheme}://{host}:{port}"
+    result: dict[str, Any] = {"url": url, "host": host, "scheme": scheme, "port": port}
+    try:
+        if scheme == "https":
+            connection = http.client.HTTPSConnection(
+                host,
+                port=port,
+                timeout=4,
+                context=ssl._create_unverified_context(),
+            )
+        else:
+            connection = http.client.HTTPConnection(host, port=port, timeout=4)
+        connection.request("GET", "/", headers={"User-Agent": "SignalHound-WebFingerprint/1.0"})
+        response = connection.getresponse()
+        body = response.read(65536)
+        headers = {key.lower(): value for key, value in response.getheaders()}
+        result.update(
+            {
+                "http_status": response.status,
+                "server": headers.get("server"),
+                "content_type": headers.get("content-type"),
+                "redirect_location": headers.get("location"),
+                "title": _extract_html_title(body, headers.get("content-type")),
+            }
+        )
+        connection.close()
+        if scheme == "https":
+            result.update(_read_tls_certificate(host=host, port=port))
+    except (OSError, http.client.HTTPException, ssl.SSLError, socket.timeout) as exc:
+        result["error"] = str(exc)
+    return result
+
+
+def _extract_html_title(body: bytes, content_type: str | None) -> str | None:
+    if content_type and "html" not in content_type.lower():
+        return None
+    try:
+        text = body.decode("utf-8", errors="ignore")
+    except ValueError:
+        return None
+    lower = text.lower()
+    start = lower.find("<title")
+    if start == -1:
+        return None
+    start = lower.find(">", start)
+    end = lower.find("</title>", start)
+    if start == -1 or end == -1:
+        return None
+    title = html.unescape(text[start + 1 : end]).strip()
+    return " ".join(title.split())[:240] or None
+
+
+def _read_tls_certificate(*, host: str, port: int) -> dict[str, Any]:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    with socket.create_connection((host, port), timeout=4) as sock:
+        with context.wrap_socket(sock, server_hostname=host) as tls:
+            cert = tls.getpeercert()
+    return {
+        "tls_subject": _certificate_name(cert.get("subject", ())),
+        "tls_issuer": _certificate_name(cert.get("issuer", ())),
+        "tls_not_after": cert.get("notAfter"),
+    }
+
+
+def _certificate_name(parts: Any) -> str | None:
+    names: list[str] = []
+    for group in parts:
+        for key, value in group:
+            if key in {"commonName", "organizationName"}:
+                names.append(str(value))
+    return ", ".join(names) or None
+
+
+def _looks_like_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False

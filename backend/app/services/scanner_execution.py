@@ -177,7 +177,7 @@ def _prepare_execution_job(*, job: ScannerJob, adapter: ScannerAdapter, timeout_
     if prepared_job.command != stored_command:
         raise ValueError("Stored scanner command does not match adapter-prepared command")
 
-    return replace(prepared_job, timeout_seconds=timeout_seconds)
+    return replace(prepared_job, config=job.prepared_config, timeout_seconds=timeout_seconds)
 
 
 def _observe_normalized_asset(db: Session, *, job: ScannerJob, asset_data: dict[str, Any]) -> Asset:

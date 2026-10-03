@@ -22,8 +22,9 @@ Docker Desktop can make local network discovery noisy or incomplete: some probes
 3. Discover live hosts.
 4. Detect exposed services on authorized hosts.
 5. Document assets and services.
-6. Run limited web finding checks where appropriate.
-7. Review changes and follow up manually.
+6. Fingerprint observed web services.
+7. Run limited web finding checks where appropriate.
+8. Review changes and follow up manually.
 
 ## 1. Define Scope
 
@@ -88,6 +89,8 @@ Expected output gives you live IP addresses and sometimes hostnames or MAC vendo
 
 Run an `internal_it_quick` assessment from the GUI for the scoped CIDR. SignalHound imports only hosts with open services or reliable host-discovery reasons. Docker/NAT-only pseudo-up responses such as `reset`, `user-set`, and `unknown-response` without open services are ignored.
 
+For internal targets, SignalHound checks a conservative web/admin port set: `80,443,3000,5000,7000,8000,8080,8443,9000,9443`. This is meant to catch router UIs and local Mac/dev web services without becoming a full-port scan.
+
 If you need fuller inventory coverage, run host-based discovery outside Docker and document missing devices manually until a dedicated LAN scanner node exists.
 
 ## 4. Detect Exposed Services
@@ -118,7 +121,22 @@ Document open services in SignalHound:
 - product/version if detected
 - source command
 
-## 5. Web Checks
+## 5. Web Fingerprinting
+
+After an internal assessment completes, use **Prepare web fingerprinting** in the assessment detail panel. SignalHound creates `web_fingerprint` jobs for observed, in-scope HTTP(S) services. Run those jobs from the Scanner jobs table before preparing vulnerability checks.
+
+Fingerprinting records lightweight context as service-observation metadata:
+
+- URL and HTTP status
+- HTML page title
+- `Server` and `Content-Type` headers
+- redirect location
+- TLS certificate subject, issuer, and expiry where available
+- connection errors for evidence
+
+This step is useful for routers, local Mac web services, NAS/admin panels, TV boxes, and other LAN devices with web interfaces. It does not brute-force logins or submit forms.
+
+## 6. Web Checks
 
 If a host exposes HTTP or HTTPS, verify it manually first:
 
@@ -150,7 +168,20 @@ nuclei \
 
 If there are no matches, record that as a completed check with zero findings. A scan with zero findings is still a useful result.
 
-## 6. What to Record as Findings
+## 7. Mobile and OS Version Limits
+
+Mobile operating-system versions are usually not reliably discoverable from passive LAN metadata or conservative remote probes. Treat hostname, mDNS, UPnP, or web-title hints as low-confidence context only.
+
+Reliable mobile OS/version inventory should come from one of these future or manual sources:
+
+- manual asset context entered by an analyst
+- Apple/Android MDM export
+- Microsoft Intune or another device-management provider
+- a self-report workflow on the device
+
+Do not create a confirmed outdated-OS finding from network hints alone.
+
+## 8. What to Record as Findings
 
 Create a finding when there is something actionable.
 
@@ -165,7 +196,7 @@ Examples:
 
 Do not create a finding just because a host exists.
 
-## 7. Current SignalHound Mapping
+## 9. Current SignalHound Mapping
 
 Current app support:
 
@@ -176,6 +207,7 @@ Current app support:
 - Findings
 - Scanner jobs for external recon adapters
 - Internal IT quick assessments with conservative Nmap import
+- Assessment follow-up action to prepare scoped web-fingerprinting jobs
 - Run output and import summaries
 
 Not implemented yet:
@@ -183,8 +215,9 @@ Not implemented yet:
 - Internal scanner nodes
 - Network segmentation validation
 - Scheduled recurring internal scans
+- MDM/provider-based mobile OS version inventory
 
-## 8. Recommended Future Epic
+## 10. Recommended Future Epic
 
 Future internal recon work:
 

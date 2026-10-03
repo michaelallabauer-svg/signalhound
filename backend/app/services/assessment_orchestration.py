@@ -159,7 +159,66 @@ def _count_result_items(result: dict[str, Any], key: str) -> int:
     return len(value) if isinstance(value, list) else 0
 
 
-WEB_SERVICE_PORTS = {80, 443, 8080, 8443}
+WEB_SERVICE_PORTS = {80, 443, 3000, 5000, 7000, 8000, 8080, 8443, 9000, 9443}
+
+
+def prepare_web_fingerprint_followups(db: Session, *, run: AssessmentRun) -> dict[str, Any]:
+    if run.status != AssessmentRunStatus.COMPLETED:
+        raise ValueError("Web fingerprinting can only be prepared for completed assessments")
+
+    adapter = scanner_registry.get("web_fingerprint")
+    if adapter is None:
+        raise ValueError("Scanner adapter not found: web_fingerprint")
+
+    endpoints_by_target = _web_endpoints_from_assessment_jobs(db, run=run)
+    existing_targets = {
+        job.target
+        for job in list_scanner_jobs(db, organization_id=run.organization_id, adapter_name="web_fingerprint")
+        if job.assessment_run_id == run.id
+    }
+    prepared_jobs: list[ScannerJob] = []
+    skipped_targets: list[str] = []
+
+    for target, endpoints in endpoints_by_target.items():
+        if target in existing_targets:
+            skipped_targets.append(target)
+            continue
+
+        scanner_target = ScannerTarget(value=target, scope_id=run.scope_id, organization_id=run.organization_id)
+        prepared = adapter.prepare_job(scanner_target)
+        prepared_config = {**prepared.config, "endpoints": endpoints}
+        job = create_scanner_job(
+            db,
+            organization_id=run.organization_id,
+            scope_id=run.scope_id,
+            adapter_name=prepared.adapter_name,
+            target=prepared.target,
+            prepared_config=prepared_config,
+            assessment_run_id=run.id,
+        )
+        prepared_jobs.append(job)
+        record_audit_event(
+            db,
+            action="assessment.web_fingerprint.prepared",
+            affected_object_type="scanner_job",
+            affected_object_id=str(job.id),
+            result="success",
+            metadata={
+                "assessment_run_id": run.id,
+                "adapter_name": job.adapter_name,
+                "target": job.target,
+                "endpoints": endpoints,
+            },
+        )
+
+    return {
+        "assessment_run_id": run.id,
+        "adapter_name": "web_fingerprint",
+        "candidate_targets": [_endpoint_label(endpoint) for endpoints in endpoints_by_target.values() for endpoint in endpoints],
+        "prepared_job_ids": [job.id for job in prepared_jobs],
+        "prepared_targets": [job.target for job in prepared_jobs],
+        "skipped_targets": skipped_targets,
+    }
 
 
 def prepare_vulnerability_followups(db: Session, *, run: AssessmentRun) -> dict[str, Any]:
@@ -251,6 +310,44 @@ def _web_targets_from_assessment_jobs(db: Session, *, run: AssessmentRun) -> lis
     return sorted(targets)
 
 
+def _web_endpoints_from_assessment_jobs(db: Session, *, run: AssessmentRun) -> dict[str, list[dict[str, Any]]]:
+    scan_zone = _scan_zone_for_run(db, run)
+    endpoints_by_target: dict[str, dict[str, dict[str, Any]]] = {}
+    jobs = list(
+        db.scalars(
+            select(ScannerJob)
+            .where(ScannerJob.assessment_run_id == run.id)
+            .order_by(ScannerJob.id)
+        )
+    )
+    for job in jobs:
+        result = job.normalized_result or {}
+        services = result.get("services", [])
+        if not isinstance(services, list):
+            continue
+        for service in services:
+            if not isinstance(service, dict) or not _is_web_service(service):
+                continue
+            target = str(service.get("asset_value", "")).strip().lower().rstrip(".")
+            if not target:
+                continue
+            validation = ScopeValidator().validate(
+                db,
+                organization_id=run.organization_id,
+                target=target,
+                scan_zone=scan_zone,
+            )
+            if not validation.allowed or validation.scope_id != run.scope_id:
+                continue
+            endpoint = _endpoint_from_service(validation.normalized_target, service)
+            endpoints_by_target.setdefault(validation.normalized_target, {})[_endpoint_label(endpoint)] = endpoint
+
+    return {
+        target: sorted(endpoints.values(), key=lambda endpoint: (str(endpoint["scheme"]), int(endpoint["port"])))
+        for target, endpoints in sorted(endpoints_by_target.items())
+    }
+
+
 def _is_web_service(service: dict[str, Any]) -> bool:
     try:
         port = int(service.get("port", 0))
@@ -258,6 +355,27 @@ def _is_web_service(service: dict[str, Any]) -> bool:
         port = 0
     name = str(service.get("name") or "").lower()
     return port in WEB_SERVICE_PORTS or "http" in name
+
+
+def _endpoint_from_service(target: str, service: dict[str, Any]) -> dict[str, Any]:
+    port = int(service.get("port", 443))
+    name = str(service.get("name") or "").lower()
+    scheme = "https" if port in {443, 8443} or "https" in name or "ssl" in name else "http"
+    return {
+        "scheme": scheme,
+        "host": target,
+        "port": port,
+        "service_name": service.get("name"),
+    }
+
+
+def _endpoint_label(endpoint: dict[str, Any]) -> str:
+    scheme = str(endpoint.get("scheme", "http"))
+    host = str(endpoint.get("host", ""))
+    port = int(endpoint.get("port", 443 if scheme == "https" else 80))
+    if port in {80, 443}:
+        return f"{scheme}://{host}"
+    return f"{scheme}://{host}:{port}"
 
 
 def _scan_zone_for_run(db: Session, run: AssessmentRun) -> ScanZone:

@@ -18,7 +18,11 @@ from app.schemas.assessment import (
     ScanProfileRead,
 )
 from app.schemas.scanner import ScannerJobRead
-from app.services.assessment_orchestration import prepare_assessment_jobs, prepare_vulnerability_followups
+from app.services.assessment_orchestration import (
+    prepare_assessment_jobs,
+    prepare_vulnerability_followups,
+    prepare_web_fingerprint_followups,
+)
 from app.services.audit import record_audit_event
 from app.services.scan_profiles import get_scan_profile, list_scan_profiles
 from app.services.scope_validation import ScopeValidator
@@ -167,6 +171,25 @@ def prepare_vulnerability_checks(
 
     try:
         payload = prepare_vulnerability_followups(db, run=run)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    db.commit()
+    return AssessmentFollowupRead(**payload)
+
+
+@router.post("/assessments/{assessment_run_id}/prepare-web-fingerprints", response_model=AssessmentFollowupRead)
+def prepare_web_fingerprints(
+    assessment_run_id: int,
+    db: Session = Depends(get_db),
+) -> AssessmentFollowupRead:
+    run = get_assessment_run(db, assessment_run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment run not found")
+
+    try:
+        payload = prepare_web_fingerprint_followups(db, run=run)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc

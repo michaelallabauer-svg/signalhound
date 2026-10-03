@@ -37,10 +37,11 @@ def test_scanner_adapters_are_listed(client: TestClient) -> None:
 
     assert response.status_code == 200
     adapters = {adapter["name"]: adapter for adapter in response.json()}
-    assert set(adapters) == {"nmap", "amass", "nuclei"}
+    assert set(adapters) == {"nmap", "amass", "nuclei", "web_fingerprint"}
     assert adapters["nmap"]["execution_available"] is True
     assert adapters["amass"]["execution_available"] is True
     assert adapters["nuclei"]["execution_available"] is True
+    assert adapters["web_fingerprint"]["execution_available"] is True
 
 
 def test_prepare_scanner_job_requires_scope_validation(client: TestClient, db_session: Session) -> None:

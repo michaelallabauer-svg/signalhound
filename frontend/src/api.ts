@@ -216,6 +216,8 @@ export const api = {
   createAssessment: (payload: Record<string, unknown>) => request<AssessmentRun>("/assessments", post(payload)),
   prepareVulnerabilityChecks: (assessmentRunId: number) =>
     request<AssessmentFollowup>(`/assessments/${assessmentRunId}/prepare-vulnerability-checks`, post({})),
+  prepareWebFingerprints: (assessmentRunId: number) =>
+    request<AssessmentFollowup>(`/assessments/${assessmentRunId}/prepare-web-fingerprints`, post({})),
   archiveAssessment: (assessmentRunId: number) =>
     request<AssessmentRun>(`/assessments/${assessmentRunId}/archive`, post({})),
   scannerJobs: (organizationId: number) => request<ScannerJob[]>(`/scanner-jobs?organization_id=${organizationId}`),

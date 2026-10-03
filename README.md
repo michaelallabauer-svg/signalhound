@@ -302,7 +302,7 @@ Important Epic 4 behavior:
 
 - Targets are scope-validated before any scanner adapter receives them.
 - Out-of-scope targets are rejected and audited.
-- Registered adapters: `nmap`, `amass`, `nuclei`.
+- Registered adapters: `nmap`, `amass`, `nuclei`, `web_fingerprint`.
 - Scanner jobs are stored as `PREPARED` with prepared config, raw output fields, normalized result fields, and lifecycle timestamps.
 
 ## External Discovery
@@ -329,6 +329,21 @@ Epic 5 behavior:
 - Out-of-scope discovered assets may be recorded without `scope_id` as discovered/unverified inventory.
 - Services are attached to normalized assets and historized.
 - `nuclei` normalizes JSONL findings into the finding inventory.
+
+## Epic 11.6 LAN Web Fingerprinting
+
+Completed internal assessments can now prepare a conservative web-fingerprinting follow-up from observed web services. In the assessment detail panel, use **Prepare web fingerprinting** to create `web_fingerprint` jobs for scoped HTTP(S) services, then run those jobs from the scanner-job table.
+
+For internal IP/CIDR targets, the Nmap discovery profile checks a small web/admin port set: `80,443,3000,5000,7000,8000,8080,8443,9000,9443`.
+
+The `web_fingerprint` adapter records lightweight service metadata:
+
+- URL, HTTP status, redirect location, content type, and `Server` header
+- HTML title where a page is returned
+- TLS subject, issuer, and expiry where available
+- Connection errors as service-observation evidence
+
+This is not a vulnerability-intelligence engine and does not infer mobile OS patch state. Phones and tablets usually do not expose reliable OS-version data remotely; model and OS metadata should later come from manual asset context or an MDM/provider integration.
 
 ## Finding Management API
 
