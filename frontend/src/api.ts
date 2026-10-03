@@ -190,6 +190,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  nodes: (org:number, offset=0) => request<NodeList>(`/nodes?organization_id=${org}&limit=20&offset=${offset}`),
+  nodeJobs: (org:number, rule?:number, offset=0) => request<NodeJob[]>(`/nodes/jobs?organization_id=${org}&limit=20&offset=${offset}${rule ? `&rule_id=${rule}` : ''}`),
+  queueNodeRule: (org:number, rule:number) => request<NodeJob>(`/nodes/rules/${rule}/queue`,post({organization_id:org})),
   segmentationConfig: (org: number) => request<SegmentationConfig>(`/segmentation/config?organization_id=${org}`),
   segmentationRules: (org: number, offset = 0) => request<SegmentationRule[]>(`/segmentation/rules?organization_id=${org}&offset=${offset}&limit=20`),
   createSegmentationRule: (payload: {organization_id:number; name:string; source_id:string; scope_id:number; target:string; port:number; expected:string; rationale:string}) => request<SegmentationRule>('/segmentation/rules', post(payload)),
@@ -320,11 +323,18 @@ export type AssetBusinessContext = { asset_id: number; organization_id: number; 
 export type ContextHistory = { id: number; asset_id: number; revision: number; changed_at: string;
   before: AssetBusinessContext; after: AssetBusinessContext };
 
-export type SegmentationSource = { id:string; organization_id:number; name:string; bind_ip:string; target_scope_ids:number[]; allowed_ports:number[] };
-export type SegmentationConfig = { enabled:boolean; sources:SegmentationSource[]; configuration_error:string|null; notice:string; cooldown_seconds:number };
+export type SegmentationSource = { id:string; node_id?:number; organization_id:number; name:string; bind_ip:string; target_scope_ids:number[]; allowed_ports:number[] };
+export type SegmentationConfig = { enabled:boolean; node_execution_enabled?:boolean; sources:SegmentationSource[]; configuration_error:string|null; notice:string; cooldown_seconds:number };
 export type SegmentationRule = { id:number; organization_id:number; name:string; source_id:string; source:SegmentationSource;
   scope_id:number; zone:{id:number;name:string;target:string;scan_zone:string}; target:string; port:number;
   expected:'ALLOW'|'DENY'; rationale:string; active:boolean; created_at:string };
 export type SegmentationCheck = { id:number; rule_id:number; created_at:string; status:string; outcome:string;
   expected:{name:string;source:SegmentationSource;zone:{name:string;target:string};target:string;port:number;access:string;rationale:string;policy_version:string};
-  observed:{state:string;attempted:boolean;detail:string;notice:string;actual_source_ip?:string|null;source_port?:number|null;duration_ms?:number} };
+  observed:{node_id?:number;node_job_id?:number;node_version?:string;state:string;attempted:boolean;detail:string;notice:string;actual_source_ip?:string|null;source_port?:number|null;duration_ms?:number} };
+
+export type ScannerNode = { id:number; organization_id:number; name:string; bind_ip:string; target_scope_ids:number[]; allowed_ports:number[];
+ capabilities:string[]; active:boolean; credential_generation:number; last_seen_at:string|null; version:string|null;
+ reported_capabilities:string[]; execution_enabled:boolean; online:boolean; ready:boolean };
+export type NodeList = {enabled:boolean;required_version:string;nodes:ScannerNode[]};
+export type NodeJob = {id:number;node_id:number;rule_id:number;status:string;created_at:string;expires_at:string;started_at:string|null;
+ completed_at:string|null;check_id:number|null;message:string|null;expected:{name:string;target:string;port:number;source:SegmentationSource;access:string}};

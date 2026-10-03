@@ -36,18 +36,20 @@ import {
 import signalHoundLogo from "./assets/signalhound-logo.png";
 
 import { Help, fieldHelp } from "./components/Help";
+import { Nodes } from "./components/Nodes";
 import { Segmentation } from "./components/Segmentation";
 import { BusinessContext } from "./components/BusinessContext";
 import { Risk } from "./components/Risk";
 import { Intelligence } from "./components/Intelligence";
 import { WebFingerprints } from "./components/WebFingerprints";
 
-type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes" | "segmentation";
+type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes" | "segmentation" | "nodes";
 
 const tabs: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
   { id: "scopes", label: "Scopes", icon: Crosshair },
   { id: "scanners", label: "Scanners", icon: Radar },
+  { id: "nodes", label: "Scanner nodes", icon: Radar },
   { id: "segmentation", label: "Segmentation", icon: Crosshair },
   { id: "inventory", label: "Inventory", icon: Database },
   { id: "findings", label: "Findings", icon: AlertTriangle },
@@ -285,6 +287,7 @@ export function App() {
           <EmptyOrganization onCreate={(name) => withAction(() => api.createOrganization(name), "Organization created")} />
         ) : (
           <>
+            {activeTab === "nodes" && selectedOrgId && <Nodes key={selectedOrgId} organizationId={selectedOrgId} />}
             {activeTab === "segmentation" && selectedOrgId && <Segmentation key={selectedOrgId} organizationId={selectedOrgId} scopes={state.scopes} />}
             {activeTab === "overview" && <Overview metrics={metrics} state={state} />}
             {activeTab === "scopes" && selectedOrgId && (

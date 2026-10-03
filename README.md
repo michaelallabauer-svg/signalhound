@@ -639,3 +639,13 @@ Execution defaults disabled and requires an administrator-configured real backen
 allowed Internal IT scopes/ports and both execution gates. Inventory locations do not grant
 scan authorization. See [setup, API, limits and outcome semantics](docs/epic-15-segmentation.md).
 Distributed scanner nodes are deferred to Epic 16.
+
+## Epic 16 — Distributed Scanner Nodes
+
+**Scanner nodes** adds outbound/pull execution from approved locations. The initial capability
+is the bounded TCP segmentation check, with individual credentials, validated HTTPS, pinned
+network/port grants, heartbeat, version reporting, rotation/revocation and finite job leases.
+Select an authorized node in **Segmentation**, prepare a rule and explicitly queue a check.
+Results remain separate from queue state. A standalone Python 3.12+ zipapp needs no third-party
+client packages. [Build, registration, TLS setup and operation](docs/epic-16-nodes.md).
+`NODE_EXECUTION_ENABLED` defaults false. No node is automatically enrolled or scanning.

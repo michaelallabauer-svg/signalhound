@@ -79,12 +79,12 @@ def config(organization_id: int = Query(gt=0), db: Session = Depends(get_db)):
     organization(db, organization_id)
     settings = get_settings()
     try:
-        sources = [s.model_dump() for s in configured_sources(organization_id)]
+        sources = [s.model_dump(exclude_none=True) for s in configured_sources(organization_id, db)]
         error = None
     except ValueError as exc:
         sources, error = [], str(exc)
     return {'enabled': settings.scanner_execution_enabled and settings.segmentation_execution_enabled and error is None,
-            'sources': sources, 'configuration_error': error, 'notice': NOTICE, 'cooldown_seconds': 5}
+            'node_execution_enabled': settings.node_execution_enabled, 'sources': sources, 'configuration_error': error, 'notice': NOTICE, 'cooldown_seconds': 5}
 
 
 @router.get('/rules', response_model=list[RuleRead])
@@ -106,7 +106,7 @@ def create(payload: RuleCreate, db: Session = Depends(get_db)):
         source, zone = authorized(db, payload.organization_id, payload.source_id, payload.scope_id, payload.target, payload.port)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    rule = SegmentationRule(**payload.model_dump(), source=source.model_dump(), zone=zone)
+    rule = SegmentationRule(**payload.model_dump(), source=source.model_dump(exclude_none=True), zone=zone)
     db.add(rule)
     db.flush()
     record_audit_event(db, action='segmentation.prepared', affected_object_type='segmentation_rule',

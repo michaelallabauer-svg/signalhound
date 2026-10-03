@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useId, useState } from 'react';
-import { api, Scope, SegmentationCheck, SegmentationConfig, SegmentationRule } from '../api';
+import { api, Scope, NodeJob, SegmentationCheck, SegmentationConfig, SegmentationRule } from '../api';
 import { Help } from './Help';
+import { NodeJobCards } from './Nodes';
 
 const outcomes: Record<string, string> = {
   PASS: 'Expected access confirmed', UNEXPECTED_ACCESS: 'Unexpected access — connection succeeded',
@@ -12,6 +13,7 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
   const prefix = useId();
   const [config, setConfig] = useState<SegmentationConfig | null>(null);
   const [rules, setRules] = useState<SegmentationRule[]>([]);
+  const [nodeJobs, setNodeJobs] = useState<NodeJob[]>([]);
   const [checks, setChecks] = useState<SegmentationCheck[]>([]);
   const [offset, setOffset] = useState(0);
   const [historyOffset, setHistoryOffset] = useState(0);
@@ -41,15 +43,15 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
   }, [organizationId, offset, refresh]);
   useEffect(() => {
     let disposed = false;
-    setChecks([]);
+    setChecks([]); setNodeJobs([]);
     if (selected === null) return;
     setHistoryLoading(true);
-    api.segmentationChecks(organizationId, selected, historyOffset)
-      .then(rows=>{ if(!disposed) setChecks(rows); })
+    Promise.all([api.segmentationChecks(organizationId, selected, historyOffset), rule?.source.node_id ? api.nodeJobs(organizationId, selected) : Promise.resolve([])])
+      .then(([rows,jobs])=>{ if(!disposed) {setChecks(rows);setNodeJobs(jobs);} })
       .catch(e=>{ if(!disposed) setError(String(e.message)); })
       .finally(()=>{ if(!disposed) setHistoryLoading(false); });
     return () => { disposed = true; };
-  }, [organizationId, selected, historyOffset, refresh]);
+  }, [organizationId, selected, historyOffset, refresh, rule?.source.node_id]);
   async function action(work:()=>Promise<unknown>, message:string) {
     setBusy(true); setError(null); setNotice(null);
     try { await work(); setNotice(message); setRefresh(v=>v+1); }
@@ -86,7 +88,7 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
       {config.sources.length === 0 && <p className="notice">No authorized scanner source is configured for this organization. Ask the deployment administrator to configure a source before preparing rules. An Inventory location is not a scan authorization.</p>}
       <details><summary>Administrator setup and source limitations</summary>
         <p>Configure <code>SEGMENTATION_SOURCES_JSON</code> on the backend with a source ID, organization ID, real bind IP, allowed target scope IDs and up to 16 allowed TCP ports. Then enable both <code>SEGMENTATION_EXECUTION_ENABLED</code> and <code>SCANNER_EXECUTION_ENABLED</code>. Restart the backend after configuration changes.</p>
-        <p>The bind IP must exist inside the backend's network namespace. Docker Desktop is not automatically a Mac or LAN scanner. NAT can change the address seen by the destination. Distributed scanner nodes are not part of this release.</p>
+        <p>The bind IP must exist inside the backend's network namespace. Docker Desktop is not automatically a Mac or LAN scanner. NAT can change the address seen by the destination. For an authorized remote location, register a Scanner node and select it as the source here.</p>
       </details>
       <form onSubmit={create} aria-label="Prepare segmentation rule">
         <fieldset disabled={busy || loading || config.sources.length === 0} className="segmentation-fields">
@@ -96,7 +98,7 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
               <input id={`${prefix}-name`} required maxLength={160} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div>
             <div>{label('source','Scanner source','Server-authorized source position. The connection must bind this IP; failure will never fall back to another interface.')}
               <select id={`${prefix}-source`} required value={form.source_id} onChange={e=>setForm({...form,source_id:e.target.value,scope_id:'',port:''})}>
-                <option value="">Select authorized source</option>{config.sources.map(s=><option key={s.id} value={s.id}>{s.name} · {s.bind_ip}</option>)}
+                <option value="">Select authorized source</option>{config.sources.map(s=><option key={s.id} value={s.id}>{s.node_id ? "Node: " : "Backend: "}{s.name} · {s.bind_ip}</option>)}
               </select></div>
             <div>{label('zone','Target zone','Only active Internal IT IP/CIDR scopes explicitly authorized for this source are offered.')}
               <select id={`${prefix}-zone`} required value={form.scope_id} onChange={e=>setForm({...form,scope_id:e.target.value})}>
@@ -135,11 +137,16 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
       <p>{rule.rationale}</p>
       <p className="muted">Rules are immutable. To change an expectation, archive it and prepare a new rule. Previous check results stay unchanged.</p>
       <div className="button-row">
-        <button className="primary-button" disabled={busy || loading || !rule.active || !config?.enabled}
-          onClick={()=>void action(async()=>{await api.runSegmentationCheck(organizationId, rule.id);setHistoryOffset(0);}, 'Check recorded. Review the observed result below.')}>Check one TCP endpoint</button>
+        <button className="primary-button" disabled={busy || loading || !rule.active || !config?.enabled || (!!rule.source.node_id && !config.node_execution_enabled)}
+          onClick={()=>void action(async()=>{if(rule.source.node_id) await api.queueNodeRule(organizationId,rule.id);else await api.runSegmentationCheck(organizationId, rule.id);setHistoryOffset(0);}, rule.source.node_id ? 'Node job queued, not yet measured. Refresh status to see progress and results.' : 'Check recorded. Review the observed result below.')}>{rule.source.node_id ? 'Queue check on selected node' : 'Check one TCP endpoint'}</button>
         <Help label="Run check help" text="Starts one two-second TCP connection from the configured source. Authorization is checked again before execution. Wait at least five seconds between checks. Archived rules or disabled execution cannot send traffic."/>
         <button disabled={busy || loading || !rule.active} onClick={()=>void action(()=>api.archiveSegmentationRule(organizationId,rule.id),'Rule archived. History is retained.')}>Archive rule</button>
       </div>
+      {rule.source.node_id && <>
+        {!config?.node_execution_enabled && <p>Distributed execution is disabled on the server. Prepared rules and history remain available.</p>}
+        <p>A remote check runs only when this node pulls it and receives a fresh start authorization. Queueing is not a measured result. Refresh rules and configuration for updates.</p>
+        <NodeJobCards jobs={nodeJobs}/>
+      </>}
       {!rule.active && <p>Archived rules cannot run checks.</p>}
       <h4>Observed results <Help label="Result interpretation help" text="PASS confirms only expected TCP access at that time. FAIL marks unexpected access or a refused required connection. ERROR is inconclusive, including DENY with refusal, timeout, routing or source binding failure. NOT_TESTED means no connection was attempted."/></h4>
       {historyLoading ? <p role="status">Loading check history…</p> : !checks.length && <p>No results on this page. Untested is not a pass.</p>}
@@ -149,6 +156,7 @@ export function Segmentation({ organizationId, scopes }: { organizationId: numbe
         <p><strong>Expected then:</strong> {check.expected.access} · {check.expected.source.name} ({check.expected.source.bind_ip}) → {check.expected.target}:{check.expected.port}/TCP · {check.expected.zone.name}</p>
         <p><strong>Observed:</strong> {check.observed.state} · {check.observed.attempted ? 'Connection attempted' : 'No connection attempted'}</p>
         <p>{check.observed.detail}</p>
+        {check.observed.node_id && <p>Authenticated report from node #{check.observed.node_id} · version {check.observed.node_version} · job #{check.observed.node_job_id}. Network evidence is node-reported.</p>}
         {check.observed.actual_source_ip && <p>Bound source: {check.observed.actual_source_ip} · {check.observed.duration_ms} ms</p>}
         <p className="muted">{check.observed.notice}</p>
       </article>)}

@@ -2,19 +2,19 @@
 import ipaddress
 import json
 import socket
-import time
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from signalhound_node.probe import probe
 from app.core.config import get_settings
 from app.models.scope import Scope, ScanZone, ScopeTargetType
 from app.models.segmentation import SegmentationRule, SegmentationCheck
 from app.services.audit import record_audit_event
 
 NOTICE = ('A TCP endpoint check is not proof of whole-zone isolation. A refusal can come from a closed service, '
-          'not a firewall. Timeouts and routing errors are inconclusive. The source is the backend network namespace; '
+          'not a firewall. Timeouts and routing errors are inconclusive. The source is the selected executor network namespace; '
           'NAT may change the address seen by the destination.')
 
 
@@ -35,6 +35,8 @@ class Source(BaseModel):
     organization_id: int = Field(gt=0)
     name: str = Field(min_length=1, max_length=160)
     bind_ip: str
+    node_id: int | None = Field(default=None, gt=0)
+    target_networks: dict[str, str] | None = None
     target_scope_ids: list[int] = Field(min_length=1, max_length=32)
     allowed_ports: list[int] = Field(min_length=1, max_length=16)
 
@@ -51,21 +53,30 @@ class Source(BaseModel):
         return values
 
 
-def configured_sources(organization_id: int) -> list[Source]:
+def configured_sources(organization_id: int, db: Session | None = None) -> list[Source]:
     try:
         raw = json.loads(get_settings().segmentation_sources_json)
         if not isinstance(raw, list) or len(raw) > 16:
             raise ValueError()
         sources = [Source.model_validate(value) for value in raw]
+        if any(s.node_id is not None or s.target_networks is not None or s.id.startswith("node-") for s in sources):
+            raise ValueError()
         if len({s.id for s in sources}) != len(sources):
             raise ValueError()
     except (ValueError, TypeError):
         raise ValueError('Invalid segmentation source configuration; ask the deployment administrator.') from None
-    return [s for s in sources if s.organization_id == organization_id]
+    sources = [s for s in sources if s.organization_id == organization_id]
+    if db is not None:
+        from app.models.nodes import ScannerNode
+        for node in db.scalars(select(ScannerNode).where(ScannerNode.organization_id == organization_id, ScannerNode.active.is_(True))):
+            sources.append(Source(id=f'node-{node.id}', node_id=node.id, organization_id=organization_id,
+                                  name=node.name, bind_ip=node.bind_ip, target_scope_ids=node.target_scope_ids,
+                                  allowed_ports=node.allowed_ports, target_networks=node.target_networks))
+    return sources
 
 
 def authorized(db: Session, organization_id: int, source_id: str, scope_id: int, target: str, port: int):
-    source = next((s for s in configured_sources(organization_id) if s.id == source_id), None)
+    source = next((s for s in configured_sources(organization_id, db) if s.id == source_id), None)
     if source is None:
         raise ValueError('Scanner source is not authorized for this organization.')
     if scope_id not in source.target_scope_ids or port not in source.allowed_ports:
@@ -75,6 +86,8 @@ def authorized(db: Session, organization_id: int, source_id: str, scope_id: int,
         raise ValueError('Target zone must be an active Internal IT scope in this organization.')
     if scope.target_type not in {ScopeTargetType.IP, ScopeTargetType.CIDR}:
         raise ValueError('Target zones must use IP or CIDR scopes; DNS resolution is not allowed.')
+    if source.node_id and (source.target_networks or {}).get(str(scope_id)) != scope.target:
+        raise ValueError('Node target-zone grant changed; register a new reviewed grant')
     address = ipaddress.ip_address(literal_ip(target))
     network = ipaddress.ip_network(scope.target, strict=False)
     if address not in network:
@@ -84,33 +97,6 @@ def authorized(db: Session, organization_id: int, source_id: str, scope_id: int,
     if address.version != ipaddress.ip_address(source.bind_ip).version:
         raise ValueError('Source and destination must use the same IP address family.')
     return source, {'id': scope.id, 'name': scope.name, 'target': scope.target, 'scan_zone': scope.scan_zone.value}
-
-
-def probe(source_ip: str, target: str, port: int) -> dict:
-    started = time.monotonic()
-    observation = {'transport': 'TCP', 'target': target, 'port': port, 'requested_source_ip': source_ip,
-                   'actual_source_ip': None, 'source_port': None, 'attempted': False}
-    phase = 'bind'
-    try:
-        with socket.socket(socket.AF_INET6 if ':' in target else socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(2.0)
-            # Binding is mandatory. Never silently fall back to the default route/interface.
-            sock.bind((source_ip, 0))
-            observation['actual_source_ip'], observation['source_port'] = sock.getsockname()[:2]
-            phase = 'connect'
-            observation['attempted'] = True
-            sock.connect((target, port))
-            observation['state'] = 'TCP_CONNECTED'
-            observation['detail'] = 'TCP connection accepted. No application data was sent.'
-    except ConnectionRefusedError:
-        observation.update(state='TCP_REFUSED', detail='TCP connection refused; this does not identify the rejecting device or prove firewall isolation.')
-    except TimeoutError:
-        observation.update(state='TIMEOUT', detail='No conclusive response within two seconds; do not interpret this as a blocked or secure zone.')
-    except OSError as exc:
-        observation.update(state='SOURCE_ERROR' if phase == 'bind' else 'NETWORK_ERROR',
-                           detail=f'{phase} failed (OS error {exc.errno}); no segmentation conclusion.')
-    observation['duration_ms'] = round((time.monotonic() - started) * 1000)
-    return observation
 
 
 def verdict(expected: Literal['ALLOW', 'DENY'], observed: dict):
@@ -133,12 +119,18 @@ def check_rule(db: Session, rule: SegmentationRule):
     recent = db.scalar(select(SegmentationCheck.created_at).join(SegmentationRule)
                        .where(SegmentationRule.organization_id == rule.organization_id)
                        .order_by(SegmentationCheck.created_at.desc()).limit(1))
-    if recent and now - recent.replace(tzinfo=UTC) < timedelta(seconds=5):
+    from app.models.nodes import NodeJob, ScannerNode
+    remote_started = db.scalar(select(NodeJob.started_at).join(ScannerNode)
+        .where(ScannerNode.organization_id == rule.organization_id, NodeJob.started_at.is_not(None))
+        .order_by(NodeJob.started_at.desc()).limit(1))
+    if any(value and now - value.replace(tzinfo=UTC) < timedelta(seconds=5) for value in (recent, remote_started)):
         raise RuntimeError('Wait five seconds between checks in this organization.')
     expected = {'rule_id': rule.id, 'name': rule.name, 'source': rule.source, 'zone': rule.zone,
                 'target': rule.target, 'port': rule.port, 'transport': 'TCP', 'access': rule.expected,
                 'rationale': rule.rationale, 'policy_version': 'segmentation-tcp-v1'}
     reason = None
+    if rule.source.get('node_id'):
+        reason = 'Remote source: queue this rule for its node. Backend execution is forbidden.'
     if not rule.active:
         reason = 'Rule is archived.'
     settings = get_settings()
@@ -146,7 +138,7 @@ def check_rule(db: Session, rule: SegmentationRule):
         reason = 'Execution is disabled. Both scanner and segmentation execution gates must be enabled by the administrator.'
     try:
         source, zone = authorized(db, rule.organization_id, rule.source_id, rule.scope_id, rule.target, rule.port)
-        if source.model_dump() != rule.source or zone != rule.zone:
+        if source.model_dump(exclude_none=True) != rule.source or zone != rule.zone:
             reason = 'Source or zone configuration changed since preparation. Create a new rule after reviewing the new boundaries.'
     except ValueError as exc:
         reason = str(exc)

@@ -214,3 +214,13 @@ ports, dual execution gates, bounded probes/cooldown, audit and archive. A dedic
 UI explains outcomes and source limitations. No denial PASS is inferred from refusal or
 silence; whole-zone isolation is not claimed. Distributed nodes remain Epic 16. See
 [delivery, setup and outcome semantics](docs/epic-15-segmentation.md).
+
+## Epic 16 — Distributed Scanner Nodes
+
+Delivered: deployment-provisioned node identities, credential rotation/revocation, mandatory
+HTTPS pull/start/result protocol, heartbeat/version/capability reporting, pinned grants and
+finite non-retrying leases. A standalone standard-library Python client executes authorized
+TCP segmentation checks from its own network namespace. Server-derived verdicts flow into
+immutable segmentation evidence; node status and guided dispatch are available in the UI.
+No remote shell or general scanner dispatch. See [setup and protocol](docs/epic-16-nodes.md).
+Assessment-engine aggregation remains Epic 17.

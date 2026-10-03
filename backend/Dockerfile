@@ -30,6 +30,7 @@ RUN set -eux; \
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY signalhound_node ./signalhound_node
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e ".[dev]"
 

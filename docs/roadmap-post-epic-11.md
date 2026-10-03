@@ -295,3 +295,12 @@ observed evidence/history, deployment-owned source/zone/port authorization, exec
 source binding, conservative verdicts and accessible guided UI. No zone-wide certification or
 DENY PASS from silence/refusal. See [Epic 15 delivery](epic-15-segmentation.md).
 Epic 16 distributed scanner nodes remains open; do not start automatically.
+
+### Epic 16 delivery status
+
+Implemented outbound/pull nodes for the bounded TCP segmentation capability, per-node credentials,
+HTTPS validation, pinned target/source grants, heartbeat/version/capability restrictions,
+rotation/revocation, finite leases and idempotent immutable results. Standalone Python client,
+node-status UI and explicit Segmentation dispatch included. General scanner adapters and
+physical-location attestation are not claimed. See [Epic 16 delivery](epic-16-nodes.md).
+Epic 17 assessment engine remains open; do not start automatically.

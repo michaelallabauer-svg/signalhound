@@ -25,7 +25,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "signalhound_node*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
