@@ -169,6 +169,7 @@ class NmapAdapter(PlaceholderScannerAdapter):
                         "metadata": {
                             "product": service.attrib.get("product") if service is not None else None,
                             "version": service.attrib.get("version") if service is not None else None,
+                            "cpes": [node.text for node in service.findall("cpe") if node.text] if service is not None else [],
                         },
                     }
                 )
@@ -387,6 +388,7 @@ class NucleiAdapter(PlaceholderScannerAdapter):
                         "matcher_name": record.get("matcher-name"),
                         "template_id": record.get("template-id"),
                         "metadata": info.get("metadata", {}),
+                        "classification": info.get("classification", {}),
                     },
                 }
             )

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://signalhound:signalhound@localhost:5432/signalhound"
     redis_url: str = "redis://localhost:6379/0"
     scanner_execution_enabled: bool = False
+    intelligence_enabled: bool = False
     scanner_timeout_seconds: int = Field(default=300, ge=5, le=1800)
     cors_origins: str = "http://localhost:8011"
     max_request_body_bytes: int = Field(default=1_048_576, ge=1024, le=10_485_760)

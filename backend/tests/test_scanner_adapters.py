@@ -42,7 +42,7 @@ def test_nmap_adapter_parses_open_services() -> None:
             "port": 443,
             "name": "https",
             "source": "nmap",
-            "metadata": {"product": "nginx", "version": "1.25"},
+            "metadata": {"product": "nginx", "version": "1.25", "cpes": []},
         }
     ]
 
@@ -227,6 +227,7 @@ def test_nuclei_adapter_parses_findings() -> None:
                 "matcher_name": None,
                 "template_id": "exposed-panel",
                 "metadata": {"cwe": "CWE-200"},
+                "classification": {},
             },
         }
     ]

@@ -586,3 +586,22 @@ Implemented:
 - No API or database migration changes. CVE enrichment and native LAN nodes remain deferred.
 - UI regression checks: `cd frontend && npx playwright install chromium && npm test`.
   Tests use mocked responses and never launch real scans.
+
+## Epic 12: Vulnerability intelligence
+
+Inventory → asset → **Vulnerability intelligence** now supports passive NVD CVE/CVSS/CPE,
+FIRST EPSS and CISA KEV lookups, with contextual help and immutable source-dated snapshots.
+Only observed exact-version CPEs or explicit CVEs on existing findings can be selected.
+Possible matches **never** create confirmed findings or start scanner jobs.
+
+To enable public lookups, set `INTELLIGENCE_ENABLED=true` in `.env`. After building:
+
+```sh
+docker compose run --rm backend alembic upgrade head
+docker compose up -d backend worker frontend
+```
+
+Fresh deployments default to disabled; existing results remain readable. Only public
+product/CVE identifiers are queried, not asset addresses. Provider errors and unknown
+values are explicit; cache TTL is 24 hours. Older Nmap observations may require new
+authorized discovery to collect CPE identifiers. See [Epic 12 delivery and API details](docs/epic-12-intelligence.md).

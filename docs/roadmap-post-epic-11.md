@@ -281,14 +281,9 @@ After every Epic, Codex must provide:
 - Architectural decisions
 - Recommended next step
 
-## Current Development Instruction
+## Current Development State
 
-The current production state is Epic 11.
+Epic 11.5, 11.6, 11.7 and Epic 12 are delivered. The explicit user request for Epic 12
+supersedes the previous historical stop instruction after 11.5.
 
-The next implementation target is:
-
-```text
-EPIC 11.5 - PRODUCTION HARDENING
-```
-
-Do not implement Epic 12 or later.
+See [Epic 12 delivery](epic-12-intelligence.md). Do not start Epic 13 automatically.

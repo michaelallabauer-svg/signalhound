@@ -178,3 +178,11 @@ states, source and observation timestamps, HTTP/TLS/redirect explanations, guide
 assessment steps, contextual hover/focus/tap help, and keyboard row selection.
 Existing service observations are reused without migrations. No product/OS confidence
 is invented from headers. Automated UI coverage uses isolated API fixtures.
+
+## Epic 12 — Vulnerability Intelligence and Enrichment
+
+Delivered: provider adapters for NVD CVE/CVSS/CPE, FIRST EPSS and CISA KEV; conservative
+observed-CPE/explicit-CVE linking; matching confidence separate from severity; immutable
+intelligence snapshots and public-data cache; audited per-asset API; accessible guided
+UI. No automatic confirmed findings, scope changes, scans or risk score. See
+[delivery details](docs/epic-12-intelligence.md). Epic 13 is deferred.

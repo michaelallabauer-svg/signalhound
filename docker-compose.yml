@@ -44,6 +44,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://signalhound:signalhound@postgres:5432/signalhound
       REDIS_URL: redis://redis:6379/0
+      INTELLIGENCE_ENABLED: ${INTELLIGENCE_ENABLED:-false}
       SCANNER_EXECUTION_ENABLED: ${SCANNER_EXECUTION_ENABLED:-false}
       SCANNER_TIMEOUT_SECONDS: ${SCANNER_TIMEOUT_SECONDS:-300}
       MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
@@ -74,6 +75,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://signalhound:signalhound@postgres:5432/signalhound
       REDIS_URL: redis://redis:6379/0
+      INTELLIGENCE_ENABLED: ${INTELLIGENCE_ENABLED:-false}
       SCANNER_EXECUTION_ENABLED: ${SCANNER_EXECUTION_ENABLED:-false}
       SCANNER_TIMEOUT_SECONDS: ${SCANNER_TIMEOUT_SECONDS:-300}
       MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}

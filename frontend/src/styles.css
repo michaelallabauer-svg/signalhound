@@ -813,3 +813,13 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #39
 .fingerprint-card h4 { margin: 0 0 8px; }
 .fingerprint-url { overflow-wrap: anywhere; font-size: 14px; }
 @media (max-width: 720px) { .workflow-guide { grid-template-columns: 1fr; } .detail-grid { grid-template-columns: 1fr; } }
+
+/* Passive vulnerability intelligence */
+.intelligence { overflow-wrap: anywhere; }
+.intelligence p { line-height: 1.5; }
+.intelligence-actions { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 16px 0; }
+.intelligence-actions label { flex: 1; min-width: 0; }
+.intelligence-actions select { display: block; width: 100%; max-width: 100%; margin-top: 8px; }
+.intelligence .cpe { display: block; white-space: normal; }
+.intelligence-candidate { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 16px; }
+.intelligence summary { cursor: pointer; }

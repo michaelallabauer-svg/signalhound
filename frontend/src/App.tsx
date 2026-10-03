@@ -35,6 +35,7 @@ import {
 import signalHoundLogo from "./assets/signalhound-logo.png";
 
 import { Help, fieldHelp } from "./components/Help";
+import { Intelligence } from "./components/Intelligence";
 import { WebFingerprints } from "./components/WebFingerprints";
 
 type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes";
@@ -768,6 +769,7 @@ function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope
         />
       </section>
       <WebFingerprints detail={detail} />
+      <Intelligence key={detail.id} assetId={detail.id} organizationId={detail.organization_id} />
       <section className="detail-section">
         <h3>Findings</h3>
         <SimpleTable
@@ -813,6 +815,7 @@ function FindingsTab({
         <SummaryItem label="Manual findings" value={manualFindings} />
         <SummaryItem label="Total findings" value={findings.length} />
       </section>
+      <p>For CVE context, open the asset in Inventory → Vulnerability intelligence. Enrichment does not change these findings.</p>
       <section className="panel">
         <PanelHeader title="Record finding" />
         <form

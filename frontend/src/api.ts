@@ -190,6 +190,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  intelligence: (assetId: number, organizationId: number, offset = 0) =>
+    request<IntelligenceData>(`/assets/${assetId}/intelligence?organization_id=${organizationId}&offset=${offset}`),
+  enrich: (assetId: number, organizationId: number, evidenceKey: string) =>
+    request<IntelligenceRun>(`/assets/${assetId}/intelligence`, post({ organization_id: organizationId, evidence_key: evidenceKey })),
   health: async () => {
     const response = await fetch(`${API_BASE_URL.replace("/api/v1", "")}/health`);
     if (!response.ok) {
@@ -246,3 +250,27 @@ function del(): RequestInit {
     method: "DELETE",
   };
 }
+
+export type IntelligenceEvidence = {
+  key: string; reference: string; kind: string; confidence: string; reason: string;
+  source: string; observed_at: string; service_id?: number; observation_id?: number;
+  finding_id?: number; finding_status?: string;
+};
+export type IntelligenceRun = {
+  id: number; asset_id: number; created_at: string; status: string; evidence: IntelligenceEvidence;
+  result: {
+    notice: string; total: number | null; truncated: boolean;
+    sources: { provider: string; status: string; cached: boolean; fetched_at?: string; error?: string }[];
+    candidates: {
+      cve_id: string; description: string; assessment: string; status: string; modified: string | null;
+      confidence: string; match_reason: string;
+      cvss: { score: number | null; version: string | null; vector: string | null; source: string | null } | null;
+      epss: { score: number | null; percentile: number | null; date: string } | null;
+      kev: boolean | null; kev_detail: { date_added: string; required_action: string } | null;
+    }[];
+  };
+};
+export type IntelligenceData = {
+  enabled: boolean; inputs: IntelligenceEvidence[]; runs: IntelligenceRun[];
+  software: { service_id: number; observation_id: number; product: string | null; version: string | null; cpes: string[]; source: string; observed_at: string }[];
+};
