@@ -5,6 +5,7 @@ from app.api.assets import router as assets_router
 from app.api.assessments import router as assessments_router
 from app.api.changes import router as changes_router
 from app.api.findings import router as findings_router
+from app.api.risk import router as risk_router
 from app.api.intelligence import router as intelligence_router
 from app.api.health import router as health_router
 from app.api.organizations import router as organizations_router
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(risk_router, prefix="/api/v1")
     app.include_router(intelligence_router, prefix="/api/v1")
     app.include_router(organizations_router, prefix="/api/v1")
     app.include_router(scopes_router, prefix="/api/v1")

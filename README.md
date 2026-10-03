@@ -605,3 +605,15 @@ Fresh deployments default to disabled; existing results remain readable. Only pu
 product/CVE identifiers are queried, not asset addresses. Provider errors and unknown
 values are explicit; cache TTL is 24 hours. Older Nmap observations may require new
 authorized discovery to collect CPE identifiers. See [Epic 12 delivery and API details](docs/epic-12-intelligence.md).
+
+## Epic 13: Explainable exposure priority
+
+Inventory → asset → **Exposure and risk** → **Calculate priority** computes an offline,
+versioned snapshot from findings and stored intelligence. Every CVSS/EPSS/KEV/context/age/
+confidence contribution is inspectable. Unknown values create a visible priority range,
+not a false zero; possible vulnerabilities remain unconfirmed. Context entered here is
+an assumption for this snapshot, not permanent asset ownership metadata.
+
+Apply migration `20261003_0011` before restarting the rebuilt backend/worker/frontend.
+No additional execution flags or external credentials are needed. See
+[algorithm, API, limits and delivery details](docs/epic-13-risk.md).

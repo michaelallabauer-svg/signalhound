@@ -35,6 +35,7 @@ import {
 import signalHoundLogo from "./assets/signalhound-logo.png";
 
 import { Help, fieldHelp } from "./components/Help";
+import { Risk } from "./components/Risk";
 import { Intelligence } from "./components/Intelligence";
 import { WebFingerprints } from "./components/WebFingerprints";
 
@@ -770,6 +771,7 @@ function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope
       </section>
       <WebFingerprints detail={detail} />
       <Intelligence key={detail.id} assetId={detail.id} organizationId={detail.organization_id} />
+      <Risk key={`risk-${detail.id}`} assetId={detail.id} organizationId={detail.organization_id} />
       <section className="detail-section">
         <h3>Findings</h3>
         <SimpleTable

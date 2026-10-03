@@ -186,3 +186,12 @@ observed-CPE/explicit-CVE linking; matching confidence separate from severity; i
 intelligence snapshots and public-data cache; audited per-asset API; accessible guided
 UI. No automatic confirmed findings, scope changes, scans or risk score. See
 [delivery details](docs/epic-12-intelligence.md). Epic 13 is deferred.
+
+## Epic 13 — Exposure and Risk Engine
+
+Delivered: offline exposure-v1.0 heuristic with stored CVSS, EPSS, KEV, exposure, criticality,
+finding-age and confidence components; explicit unknown-data ranges; current-lifecycle and
+source-freshness handling; max aggregation; immutable audited risk snapshots and API;
+accessible component explanations and snapshot history in asset details. No scanning or
+automatic confirmation. Permanent context/ownership remains Epic 14. See
+[algorithm and delivery](docs/epic-13-risk.md).

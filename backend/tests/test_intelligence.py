@@ -111,6 +111,7 @@ def test_cpe_only_latest_software_never_confirms(client, db_session, enabled, pu
 
 
 def test_disabled_cross_org_and_injected_queries(client, db_session, monkeypatch, public_data):
+    monkeypatch.setattr(get_settings(), "intelligence_enabled", False)
     org, asset = create_asset(client)
     finding(client, org, asset)
     key = get_data(client, org, asset)['inputs'][0]['key']

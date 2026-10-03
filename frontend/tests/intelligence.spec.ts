@@ -26,6 +26,7 @@ async function setup(page: Page, enabled = true, inputs = [input], runs: unknown
       return route.fulfill({ json: { enabled, inputs, software: [], runs } });
     }
     const data: Record<string, unknown> = {
+      '/assets/1/risk': { algorithm_version: 'exposure-v1.0', snapshots: [] },
       '/organizations': [{ id: 1, name: 'Intelligence test' }], '/assets': [asset],
       '/assets/1/detail': { ...asset, services: [], observations: [], service_observations: [], findings: [] },
     };

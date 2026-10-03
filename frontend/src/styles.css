@@ -823,3 +823,9 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #39
 .intelligence .cpe { display: block; white-space: normal; }
 .intelligence-candidate { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 16px; }
 .intelligence summary { cursor: pointer; }
+
+.risk { overflow-wrap: anywhere; }
+.risk-context { display: grid; gap: 12px; }
+.risk-context select, .risk-context textarea { display: block; width: 100%; margin-top: 6px; }
+.risk-components { display: grid; gap: 12px; margin: 14px 0; }
+.risk summary { cursor: pointer; }

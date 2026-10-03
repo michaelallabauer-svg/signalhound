@@ -15,3 +15,4 @@ from app.models.scanner_job import ScannerJob  # noqa: E402, F401
 from app.models.scope import Scope  # noqa: E402, F401
 from app.models.service import Service, ServiceObservation  # noqa: E402, F401
 from app.models.intelligence import IntelligenceRun, IntelligenceCache  # noqa: E402, F401
+from app.models.risk import RiskSnapshot  # noqa: E402, F401

@@ -190,6 +190,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  riskHistory: (assetId: number, organizationId: number, offset = 0) =>
+    request<RiskHistory>(`/assets/${assetId}/risk?organization_id=${organizationId}&offset=${offset}`),
+  calculateRisk: (assetId: number, payload: Record<string, unknown>) =>
+    request<RiskSnapshot>(`/assets/${assetId}/risk`, post(payload)),
   intelligence: (assetId: number, organizationId: number, offset = 0) =>
     request<IntelligenceData>(`/assets/${assetId}/intelligence?organization_id=${organizationId}&offset=${offset}`),
   enrich: (assetId: number, organizationId: number, evidenceKey: string) =>
@@ -274,3 +278,19 @@ export type IntelligenceData = {
   enabled: boolean; inputs: IntelligenceEvidence[]; runs: IntelligenceRun[];
   software: { service_id: number; observation_id: number; product: string | null; version: string | null; cpes: string[]; source: string; observed_at: string }[];
 };
+
+export type RiskSnapshot = {
+  id: number; asset_id: number; created_at: string; algorithm_version: string;
+  context: { exposure: string; criticality: string; rationale: string; asset_active: boolean };
+  result: {
+    status: string; lower: number | null; upper: number | null; notice: string; aggregation: string;
+    warnings: string[]; excluded: { finding_id: number; status: string }[];
+    entries: { key: string; title: string; kind: string; finding_id: number | null; finding_status: string | null;
+      intelligence_run_id: number | null; cve_id: string | null; status: string; band: string;
+      lower: number; upper: number; base_lower: number; base_upper: number;
+      components: { name: string; raw: unknown; known: boolean; lower: number; upper: number;
+        weight: number | null; operation?: string; source: string }[];
+    }[];
+  };
+};
+export type RiskHistory = { algorithm_version: string; snapshots: RiskSnapshot[] };

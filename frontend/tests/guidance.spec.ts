@@ -8,6 +8,7 @@ async function fixture(page: Page, observations: unknown[] = [], status = 'COMPL
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '');
     const data: Record<string, unknown> = {
       '/assets/1/intelligence': { enabled: false, inputs: [], software: [], runs: [] },
+      '/assets/1/risk': { algorithm_version: 'exposure-v1.0', snapshots: [] },
       '/organizations': [{ id: 1, name: 'Test LAN' }],
       '/scopes': [{ id: 1, name: 'LAN', target: asset.value, active: true, scan_zone: 'INTERNAL_IT' }],
       '/assets': [asset], '/services': [service],
