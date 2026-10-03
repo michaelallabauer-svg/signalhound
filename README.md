@@ -629,3 +629,13 @@ Risk calculations now default to the saved asset criticality. Snapshot overrides
 possible; old results retain their original context. Apply migration `20261003_0012` before
 restarting rebuilt services. No new credentials/configuration are needed. See
 [API, workflow, compatibility and delivery](docs/epic-14-asset-context.md).
+
+## Epic 15 — Network Segmentation Assessment
+
+The **Segmentation** tab compares an explicitly authorized source → target IP/TCP port rule
+with a single observed connection, preserving expected policy and check history separately.
+No scans run during preparation. A refusal/timeout cannot confirm safe isolation.
+Execution defaults disabled and requires an administrator-configured real backend source IP,
+allowed Internal IT scopes/ports and both execution gates. Inventory locations do not grant
+scan authorization. See [setup, API, limits and outcome semantics](docs/epic-15-segmentation.md).
+Distributed scanner nodes are deferred to Epic 16.

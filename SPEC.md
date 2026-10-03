@@ -205,3 +205,12 @@ storage remains separate. New risk snapshots can inherit saved criticality with 
 revision and source provenance; explicit overrides and old snapshots remain intact.
 No segmentation, distributed scanning or identity/RBAC work is included. See
 [delivery and API details](docs/epic-14-asset-context.md).
+
+## Epic 15 — Network Segmentation Assessment
+
+Delivered: immutable source/zone/IP/port ALLOW/DENY rules and separately persisted TCP check
+snapshots. Deployment-authorized bind IPs, exact active Internal IT target scopes, limited
+ports, dual execution gates, bounded probes/cooldown, audit and archive. A dedicated guided
+UI explains outcomes and source limitations. No denial PASS is inferred from refusal or
+silence; whole-zone isolation is not claimed. Distributed nodes remain Epic 16. See
+[delivery, setup and outcome semantics](docs/epic-15-segmentation.md).

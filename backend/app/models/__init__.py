@@ -17,3 +17,5 @@ from app.models.service import Service, ServiceObservation  # noqa: E402, F401
 from app.models.intelligence import IntelligenceRun, IntelligenceCache  # noqa: E402, F401
 from app.models.risk import RiskSnapshot  # noqa: E402, F401
 from app.models.asset_context import AssetBusinessContext, AssetContextHistory, Site  # noqa: E402, F401
+
+from app.models.segmentation import SegmentationRule, SegmentationCheck  # noqa: E402, F401

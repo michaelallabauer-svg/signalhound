@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.segmentation import router as segmentation_router
 from app.api.assets import router as assets_router
 from app.api.assessments import router as assessments_router
 from app.api.changes import router as changes_router
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(segmentation_router, prefix="/api/v1")
     app.include_router(asset_context_router, prefix="/api/v1")
     app.include_router(risk_router, prefix="/api/v1")
     app.include_router(intelligence_router, prefix="/api/v1")

@@ -835,3 +835,13 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #39
 .business-fields input, .business-fields select, .business-fields textarea { width: 100%; min-width: 0; display: block; margin-top: 6px; }
 .business-fields textarea, .risk-context textarea { min-height: 80px; resize: vertical; font: inherit; padding: 10px; border: 1px solid #ccd6d1; border-radius: 6px; }
 .business-context summary { cursor: pointer; }
+
+.segmentation { overflow-wrap: anywhere; }
+.segmentation-fields { border: 1px solid var(--border); border-radius: 8px; margin: 18px 0; padding: 16px; min-width: 0; }
+.segmentation input, .segmentation select, .segmentation textarea { width: 100%; max-width: 100%; }
+.segmentation textarea { margin: 8px 0 12px; min-height: 80px; }
+.segmentation-rules { display: grid; gap: 8px; margin-bottom: 12px; }
+.segmentation-rules button { white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.segmentation-rules button[aria-pressed="true"] { outline: 2px solid #fcac45; }
+.segmentation .button-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.segmentation details { margin: 12px 0; }

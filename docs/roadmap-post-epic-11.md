@@ -287,3 +287,11 @@ Epic 11.5, 11.6, 11.7, 12, 13 and 14 are delivered. The explicit user request fo
 supersedes the previous stop instruction after Epic 13.
 
 See [Epic 14 delivery](epic-14-asset-context.md). Do not start Epic 15 automatically.
+
+### Epic 15 delivery status
+
+Implemented bounded authorized TCP segmentation checks, immutable expected rules and separate
+observed evidence/history, deployment-owned source/zone/port authorization, execution gates,
+source binding, conservative verdicts and accessible guided UI. No zone-wide certification or
+DENY PASS from silence/refusal. See [Epic 15 delivery](epic-15-segmentation.md).
+Epic 16 distributed scanner nodes remains open; do not start automatically.

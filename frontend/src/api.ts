@@ -190,6 +190,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  segmentationConfig: (org: number) => request<SegmentationConfig>(`/segmentation/config?organization_id=${org}`),
+  segmentationRules: (org: number, offset = 0) => request<SegmentationRule[]>(`/segmentation/rules?organization_id=${org}&offset=${offset}&limit=20`),
+  createSegmentationRule: (payload: {organization_id:number; name:string; source_id:string; scope_id:number; target:string; port:number; expected:string; rationale:string}) => request<SegmentationRule>('/segmentation/rules', post(payload)),
+  archiveSegmentationRule: (org: number, id: number) => request<SegmentationRule>(`/segmentation/rules/${id}/archive`, post({organization_id:org})),
+  segmentationChecks: (org: number, id: number, offset = 0) => request<SegmentationCheck[]>(`/segmentation/rules/${id}/checks?organization_id=${org}&offset=${offset}&limit=10`),
+  runSegmentationCheck: (org: number, id: number) => request<SegmentationCheck>(`/segmentation/rules/${id}/checks`, post({organization_id:org})),
   businessContext: (assetId: number, organizationId: number) =>
     request<AssetBusinessContext>(`/assets/${assetId}/context?organization_id=${organizationId}`),
   saveBusinessContext: (assetId: number, payload: Record<string, unknown>) =>
@@ -313,3 +319,12 @@ export type AssetBusinessContext = { asset_id: number; organization_id: number; 
   revision: number; updated_at: string | null; site: Site | null };
 export type ContextHistory = { id: number; asset_id: number; revision: number; changed_at: string;
   before: AssetBusinessContext; after: AssetBusinessContext };
+
+export type SegmentationSource = { id:string; organization_id:number; name:string; bind_ip:string; target_scope_ids:number[]; allowed_ports:number[] };
+export type SegmentationConfig = { enabled:boolean; sources:SegmentationSource[]; configuration_error:string|null; notice:string; cooldown_seconds:number };
+export type SegmentationRule = { id:number; organization_id:number; name:string; source_id:string; source:SegmentationSource;
+  scope_id:number; zone:{id:number;name:string;target:string;scan_zone:string}; target:string; port:number;
+  expected:'ALLOW'|'DENY'; rationale:string; active:boolean; created_at:string };
+export type SegmentationCheck = { id:number; rule_id:number; created_at:string; status:string; outcome:string;
+  expected:{name:string;source:SegmentationSource;zone:{name:string;target:string};target:string;port:number;access:string;rationale:string;policy_version:string};
+  observed:{state:string;attempted:boolean;detail:string;notice:string;actual_source_ip?:string|null;source_port?:number|null;duration_ms?:number} };
