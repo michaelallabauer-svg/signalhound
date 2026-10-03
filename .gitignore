@@ -13,3 +13,7 @@ dist/
 build/
 *.egg-info/
 celerybeat-schedule
+
+# Browser test artifacts
+frontend/test-results/
+frontend/playwright-report/

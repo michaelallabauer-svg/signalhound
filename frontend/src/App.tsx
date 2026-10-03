@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   Activity,
   AlertTriangle,
@@ -13,7 +14,7 @@ import {
   Radar,
   RefreshCw,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useId, useMemo, useState } from "react";
 
 import {
   api,
@@ -32,6 +33,9 @@ import {
   Service,
 } from "./api";
 import signalHoundLogo from "./assets/signalhound-logo.png";
+
+import { Help, fieldHelp } from "./components/Help";
+import { WebFingerprints } from "./components/WebFingerprints";
 
 type Tab = "overview" | "scopes" | "inventory" | "findings" | "scanners" | "changes";
 
@@ -119,7 +123,12 @@ export function App() {
         api.assessments(organizationId, showArchivedAssessments),
         api.changeSets(organizationId),
       ]);
-      const services = (await Promise.all(assets.map((asset) => api.services(asset.id)))).flat();
+      // Bound fan-out: large inventories must not exhaust the API connection pool.
+      const services: Service[] = [];
+      for (let offset = 0; offset < assets.length; offset += 4) {
+        const batch = await Promise.all(assets.slice(offset, offset + 4).map((asset) => api.services(asset.id)));
+        services.push(...batch.flat());
+      }
 
       setSelectedOrgId(organizationId);
       setState({
@@ -758,6 +767,7 @@ function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope
           empty="No services observed"
         />
       </section>
+      <WebFingerprints detail={detail} />
       <section className="detail-section">
         <h3>Findings</h3>
         <SimpleTable
@@ -1055,6 +1065,12 @@ function ScannersTab({
     <section className="stack">
       <section className="panel">
         <PanelHeader title="Run assessment" />
+        <ol className="workflow-guide" aria-label="Assessment workflow">
+          <li><strong>Discover</strong><span>Select a scope and run an assessment to find hosts and services.</span></li>
+          <li><strong>Identify web services</strong><span>Select a completed run below, prepare web fingerprinting, then start the prepared jobs.</span></li>
+          <li><strong>Review & check</strong><span>Read fingerprints in Inventory → asset details. Prepare vulnerability checks when ready, then start those jobs.</span></li>
+        </ol>
+        {activeScopes.length === 0 && <p className="notice pending">First create an active scan scope in Scopes, then return here.</p>}
         <form
           className="form-grid"
           onSubmit={async (event) => {
@@ -1116,6 +1132,7 @@ function ScannersTab({
       </section>
       <section className="panel">
         <PanelHeader title="Prepare scanner job" />
+        <p className="guidance">Advanced: prepare one job manually. For a guided discovery run, use Run assessment above. Preparing does not start a scan.</p>
         <form
           className="form-grid"
           onSubmit={(event) => {
@@ -1183,6 +1200,8 @@ function ScannersTab({
                 className={run.id === selectedAssessmentId ? "selected-row" : undefined}
                 key={run.id}
                 onClick={() => setSelectedAssessmentId(run.id)}
+                tabIndex={0}
+                onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedAssessmentId(run.id); } }}
               >
                 <td>{run.profile_name}</td>
                 <td>{run.target}</td>
@@ -1223,7 +1242,11 @@ function ScannersTab({
             {assessmentDetail.error_message && <div className="notice error">{assessmentDetail.error_message}</div>}
             {followupError && <div className="notice error">{followupError}</div>}
             {followupNotice && <div className="notice success">{followupNotice}</div>}
+            <p className="guidance" role="status">{assessmentDetail.status !== "COMPLETED"
+              ? "Follow-up preparation becomes available when this assessment completes successfully. For failed runs, inspect the job output below."
+              : "Next: prepare web fingerprinting, then use Run in Scanner jobs below. Once complete, view the results in Inventory → asset details."}</p>
             <div className="assessment-actions">
+              <Help label="About preparing follow-ups" text="These buttons only create jobs from web services observed by this assessment. They do not run scans. Existing jobs are skipped; if no web services were found, run a new discovery assessment first." />
               <button
                 disabled={assessmentDetail.status !== "COMPLETED" || followupBusy}
                 onClick={() => void handlePrepareWebFingerprints(assessmentDetail.id)}
@@ -1296,7 +1319,7 @@ function ScannersTab({
                         type="button"
                       >
                         <Play size={16} />
-                        {job.status === "PREPARED" ? "Run" : "Done"}
+                        {runningJobId === job.id || job.status === "RUNNING" ? "Running" : job.status === "PREPARED" ? "Run" : job.status === "COMPLETED" ? "Done" : job.status === "FAILED" ? "Failed" : "Cancelled"}
                       </button>
                     </td>
                   </tr>
@@ -1583,11 +1606,12 @@ function PanelHeader({ title, action }: { title: string; action?: React.ReactNod
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const id = useId();
   return (
-    <label>
-      {label}
-      {children}
-    </label>
+    <div className="form-field">
+      <span className="field-heading"><label htmlFor={id}>{label}</label>{fieldHelp[label] && <Help label={`Help for ${label}`} text={fieldHelp[label]} />}</span>
+      <div className="field-control">{React.isValidElement<{ id?: string }>(children) ? React.cloneElement(children, { id }) : children}</div>
+    </div>
   );
 }
 
@@ -1620,6 +1644,8 @@ function SimpleTable({
               className={[onRowClick ? "clickable-row" : "", rowClassName?.(rowIndex) ?? ""].filter(Boolean).join(" ")}
               key={`${rowIndex}-${columns.join(":")}`}
               onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={onRowClick ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onRowClick(rowIndex); } } : undefined}
             >
               {row.map((cell, cellIndex) => (
                 <td key={cellIndex}>{cell}</td>

@@ -569,3 +569,20 @@ Implemented:
 - Profile-based assessment run automation
 - Assessment detail view with linked scanner output
 - Internal IT scope validation and Nmap-only assessment profile
+
+### Epic 11.7 — Fingerprint results & guided operation
+
+- **Inventory → select an asset → Web fingerprints** shows the latest fingerprint
+  per service: page title, HTTP status, server, content type, redirect and available
+  TLS subject/issuer/expiry. Observation time, inactive services, missing values and
+  collection errors are explicit. Metadata is displayed as text, not executable links.
+- Fingerprints are self-reported clues, not confirmed vulnerabilities or OS versions.
+  TLS values may be unavailable; collection does not establish certificate trust.
+- The Scanners page explains the workflow: run discovery → select a completed run →
+  prepare fingerprints → **Run** the prepared jobs → inspect Inventory → prepare and
+  run vulnerability checks. Preparation alone does not execute scans.
+- **?** controls explain fields and fingerprint properties on hover, keyboard focus
+  or tap; Escape dismisses the help. Asset and assessment rows support keyboard selection.
+- No API or database migration changes. CVE enrichment and native LAN nodes remain deferred.
+- UI regression checks: `cd frontend && npx playwright install chromium && npm test`.
+  Tests use mocked responses and never launch real scans.

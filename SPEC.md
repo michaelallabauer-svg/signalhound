@@ -170,3 +170,11 @@ Epic 11 does not implement credential checks, brute force, exploit execution, la
 ## Security Boundary
 
 SignalHound is intended only for authorized security assessments. Scanner execution is disabled by default and must remain scope-gated when enabled. The current implementation performs no exploitation, credential attacks, brute force functionality, payload deployment, or destructive testing.
+
+## Epic 11.7 — Fingerprint visibility and end-user guidance
+
+Delivered: latest-per-service fingerprint cards in asset details, explicit missing/error
+states, source and observation timestamps, HTTP/TLS/redirect explanations, guided
+assessment steps, contextual hover/focus/tap help, and keyboard row selection.
+Existing service observations are reused without migrations. No product/OS confidence
+is invented from headers. Automated UI coverage uses isolated API fixtures.

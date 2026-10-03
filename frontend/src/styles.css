@@ -797,3 +797,19 @@ th {
     overflow-x: auto;
   }
 }
+
+.form-field { display: grid; gap: 6px; min-width: 0; }
+.field-heading { display: flex; align-items: center; gap: 6px; }
+.help-wrap { display: inline-flex; position: relative; vertical-align: middle; text-transform: none; }
+.help-button { border-radius: 50%; width: 24px; min-height: 24px; padding: 0; justify-content: center; background: #edf4f1; color: #175444; border-color: #a8bdb4; font-size: 13px; }
+.help-button:hover { background: #d9e9e2; }
+.help-tooltip { position: fixed; z-index: 20; top: 100%; left: 0; width: min(240px, 65vw); background: #152b25; color: white; padding: 12px; border-radius: 6px; box-shadow: 0 4px 16px #0003; font-size: 13px; font-weight: 400; line-height: 1.5; text-align: left; }
+button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #398aca; outline-offset: 3px; }
+.guidance { color: #54615b; font-size: 13px; line-height: 1.6; margin: 0 0 12px; }
+.workflow-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; background: #f0f6f3; border-radius: 8px; padding: 18px 18px 18px 36px; margin: 0 0 20px; }
+.workflow-guide li { padding-right: 10px; font-size: 14px; }
+.workflow-guide span { display: block; font-size: 13px; line-height: 1.5; color: #54615b; margin-top: 6px; }
+.fingerprint-card { border: 1px solid #dfe5e1; border-radius: 8px; padding: 14px; min-width: 0; }
+.fingerprint-card h4 { margin: 0 0 8px; }
+.fingerprint-url { overflow-wrap: anywhere; font-size: 14px; }
+@media (max-width: 720px) { .workflow-guide { grid-template-columns: 1fr; } .detail-grid { grid-template-columns: 1fr; } }
