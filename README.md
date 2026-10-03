@@ -611,9 +611,21 @@ authorized discovery to collect CPE identifiers. See [Epic 12 delivery and API d
 Inventory → asset → **Exposure and risk** → **Calculate priority** computes an offline,
 versioned snapshot from findings and stored intelligence. Every CVSS/EPSS/KEV/context/age/
 confidence contribution is inspectable. Unknown values create a visible priority range,
-not a false zero; possible vulnerabilities remain unconfirmed. Context entered here is
-an assumption for this snapshot, not permanent asset ownership metadata.
+not a false zero; possible vulnerabilities remain unconfirmed. Explicit overrides apply only
+to this snapshot; the default now uses saved asset criticality from Epic 14.
 
 Apply migration `20261003_0011` before restarting the rebuilt backend/worker/frontend.
 No additional execution flags or external credentials are needed. See
 [algorithm, API, limits and delivery details](docs/epic-13-risk.md).
+
+## Epic 14: Asset business context and locations
+
+Inventory → asset → **Asset business context** now stores business criticality, environment,
+technical/business owners, responsible team, location and notes. Locations are configured
+per organization and can be renamed, archived and restored. Saved changes have revision
+history and conflict protection; scanner observations never overwrite business context.
+
+Risk calculations now default to the saved asset criticality. Snapshot overrides remain
+possible; old results retain their original context. Apply migration `20261003_0012` before
+restarting rebuilt services. No new credentials/configuration are needed. See
+[API, workflow, compatibility and delivery](docs/epic-14-asset-context.md).

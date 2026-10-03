@@ -8,6 +8,7 @@ from app.models.intelligence import IntelligenceRun
 from app.models.risk import RiskSnapshot
 from app.risk.engine import VERSION, WEIGHTS, calculate
 from app.services.audit import record_audit_event
+from app.services.asset_context import read_context
 
 
 def utc(value):
@@ -52,7 +53,7 @@ def entry(key, title, finding, run, candidate, context, now):
                'epss': epss or 'Missing/failed/stale EPSS (fetch >2 days or model date >3 days)',
                'kev': kev or 'Missing/failed/stale KEV (>2 days)',
                'exposure': 'Analyst snapshot context; not inferred from scan zone',
-               'criticality': 'Analyst snapshot context; not a stored asset attribute',
+               'criticality': context.get('criticality_provenance', 'Analyst snapshot context; not a stored asset attribute'),
                'finding_age': f'Finding #{finding.id} first seen {finding.first_seen.isoformat()}' if finding else 'No finding: potential-match age is unknown',
                'confidence': f'Intelligence #{run.id}: identifier linkage only, not exploitability' if confidence else 'No fresh identifier-linkage confidence'}
     return {'key': key, 'title': title, 'kind': 'FINDING' if finding else 'MAY_BE_AFFECTED',
@@ -123,6 +124,13 @@ def build_result(db: Session, asset_id: int, context: dict, now: datetime) -> di
 
 def create_snapshot(db, asset, context):
     now = datetime.now(timezone.utc)
+    business = read_context(db, asset).model_dump(mode='json')
+    inherited = context.get('criticality') is None
+    context = {**context,
+               'criticality': (business['criticality'] or 'UNKNOWN') if inherited else context['criticality'],
+               'criticality_source': 'asset_context' if inherited else 'snapshot_override',
+               'criticality_provenance': f"Saved asset context revision {business['revision']}" if inherited else 'Explicit analyst snapshot override; saved asset criticality unchanged',
+               'context_resolution_version': 'asset-context-v1', 'business_context': business}
     result = build_result(db, asset.id, context, now)
     snapshot = RiskSnapshot(asset_id=asset.id, created_at=now, algorithm_version=VERSION,
                             context={**context, 'asset_active': asset.active, 'scope_id': asset.scope_id}, result=result)

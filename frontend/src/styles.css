@@ -829,3 +829,9 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #39
 .risk-context select, .risk-context textarea { display: block; width: 100%; margin-top: 6px; }
 .risk-components { display: grid; gap: 12px; margin: 14px 0; }
 .risk summary { cursor: pointer; }
+
+.business-context { overflow-wrap: anywhere; }
+.business-fields { display: grid; gap: 12px; margin: 12px 0; }
+.business-fields input, .business-fields select, .business-fields textarea { width: 100%; min-width: 0; display: block; margin-top: 6px; }
+.business-fields textarea, .risk-context textarea { min-height: 80px; resize: vertical; font: inherit; padding: 10px; border: 1px solid #ccd6d1; border-radius: 6px; }
+.business-context summary { cursor: pointer; }

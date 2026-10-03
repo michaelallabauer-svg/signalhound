@@ -190,6 +190,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  businessContext: (assetId: number, organizationId: number) =>
+    request<AssetBusinessContext>(`/assets/${assetId}/context?organization_id=${organizationId}`),
+  saveBusinessContext: (assetId: number, payload: Record<string, unknown>) =>
+    request<AssetBusinessContext>(`/assets/${assetId}/context`, { ...post(payload), method: 'PATCH' }),
+  contextHistory: (assetId: number, organizationId: number, offset = 0) =>
+    request<ContextHistory[]>(`/assets/${assetId}/context/history?organization_id=${organizationId}&offset=${offset}`),
+  sites: (organizationId: number) => request<Site[]>(`/sites?organization_id=${organizationId}`),
+  createSite: (payload: Record<string, unknown>) => request<Site>('/sites', post(payload)),
+  updateSite: (siteId: number, payload: Record<string, unknown>) =>
+    request<Site>(`/sites/${siteId}`, { ...post(payload), method: 'PATCH' }),
   riskHistory: (assetId: number, organizationId: number, offset = 0) =>
     request<RiskHistory>(`/assets/${assetId}/risk?organization_id=${organizationId}&offset=${offset}`),
   calculateRisk: (assetId: number, payload: Record<string, unknown>) =>
@@ -281,7 +291,7 @@ export type IntelligenceData = {
 
 export type RiskSnapshot = {
   id: number; asset_id: number; created_at: string; algorithm_version: string;
-  context: { exposure: string; criticality: string; rationale: string; asset_active: boolean };
+  context: { exposure: string; criticality: string; rationale: string; asset_active: boolean; criticality_source?: string; business_context?: AssetBusinessContext };
   result: {
     status: string; lower: number | null; upper: number | null; notice: string; aggregation: string;
     warnings: string[]; excluded: { finding_id: number; status: string }[];
@@ -294,3 +304,12 @@ export type RiskSnapshot = {
   };
 };
 export type RiskHistory = { algorithm_version: string; snapshots: RiskSnapshot[] };
+
+export type Site = { id: number; organization_id: number; name: string; description: string | null;
+  active: boolean; revision: number; created_at: string; updated_at: string };
+export type AssetBusinessContext = { asset_id: number; organization_id: number; criticality: string | null;
+  environment: string; technical_owner: string | null; organizational_owner: string | null;
+  responsible_team: string | null; site_id: number | null; notes: string | null;
+  revision: number; updated_at: string | null; site: Site | null };
+export type ContextHistory = { id: number; asset_id: number; revision: number; changed_at: string;
+  before: AssetBusinessContext; after: AssetBusinessContext };

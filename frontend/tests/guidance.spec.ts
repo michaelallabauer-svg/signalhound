@@ -1,3 +1,4 @@
+import { emptyContext } from './fixtures';
 import { test, expect, type Page } from '@playwright/test';
 const asset = { id: 1, organization_id: 1, scope_id: 1, asset_type: 'IP', value: '192.168.1.1', active: true, source: 'nmap', known_asset: true, first_seen: '2026-10-01T10:00:00Z', last_seen: '2026-10-03T10:00:00Z' };
 const service = { id: 1, asset_id: 1, protocol: 'TCP', port: 443, name: 'https', active: true, source: 'nmap' };
@@ -9,6 +10,7 @@ async function fixture(page: Page, observations: unknown[] = [], status = 'COMPL
     const data: Record<string, unknown> = {
       '/assets/1/intelligence': { enabled: false, inputs: [], software: [], runs: [] },
       '/assets/1/risk': { algorithm_version: 'exposure-v1.0', snapshots: [] },
+      '/assets/1/context': emptyContext, '/assets/1/context/history': [],
       '/organizations': [{ id: 1, name: 'Test LAN' }],
       '/scopes': [{ id: 1, name: 'LAN', target: asset.value, active: true, scan_zone: 'INTERNAL_IT' }],
       '/assets': [asset], '/services': [service],

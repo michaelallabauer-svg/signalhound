@@ -140,3 +140,9 @@ Recommended next step only on request: **Epic 14 — Asset Criticality, Context 
 - An inherited disabled-intelligence test depended on the deployment environment; it now
   explicitly sets its tested flag and passes with local intelligence enabled as well.
 - No known failing checks; the pre-existing Starlette/httpx deprecation warning remains.
+
+## Epic 14 integration update
+
+New calculations can inherit persistent asset criticality; the numerical exposure-v1.0
+formula is unchanged. See [Epic 14](epic-14-asset-context.md) for default resolution,
+overrides and historical provenance. Existing Epic 13 snapshots remain untouched.

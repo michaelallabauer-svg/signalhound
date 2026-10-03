@@ -17,13 +17,13 @@ class CalculateRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     organization_id: int = Field(gt=0)
     exposure: Literal['UNKNOWN', 'INTERNAL', 'INTERNET'] = 'UNKNOWN'
-    criticality: Literal['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] = 'UNKNOWN'
+    criticality: Literal['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] | None = None
     rationale: str = Field(default='', max_length=2000)
 
     @model_validator(mode='after')
     def contextual_evidence(self):
         self.rationale = self.rationale.strip()
-        if (self.exposure != 'UNKNOWN' or self.criticality != 'UNKNOWN') and len(self.rationale) < 10:
+        if (self.exposure != 'UNKNOWN' or self.criticality not in {None, 'UNKNOWN'}) and len(self.rationale) < 10:
             raise ValueError('Explain the exposure/criticality assumption in at least 10 characters.')
         return self
 

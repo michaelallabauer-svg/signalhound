@@ -195,3 +195,13 @@ source-freshness handling; max aggregation; immutable audited risk snapshots and
 accessible component explanations and snapshot history in asset details. No scanning or
 automatic confirmation. Permanent context/ownership remains Epic 14. See
 [algorithm and delivery](docs/epic-13-risk.md).
+
+## Epic 14 — Asset Criticality, Context and Ownership
+
+Delivered: persistent asset business criticality/environment/owners/team/location/notes;
+organization-configured sites with reversible archive; revision-guarded updates, immutable
+context history and site audit; accessible Inventory editor with help. Scanner observation
+storage remains separate. New risk snapshots can inherit saved criticality with context
+revision and source provenance; explicit overrides and old snapshots remain intact.
+No segmentation, distributed scanning or identity/RBAC work is included. See
+[delivery and API details](docs/epic-14-asset-context.md).

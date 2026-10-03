@@ -283,7 +283,7 @@ After every Epic, Codex must provide:
 
 ## Current Development State
 
-Epic 11.5, 11.6, 11.7, 12 and 13 are delivered. The explicit user request for Epic 13
-supersedes the previous stop instruction after Epic 12.
+Epic 11.5, 11.6, 11.7, 12, 13 and 14 are delivered. The explicit user request for Epic 14
+supersedes the previous stop instruction after Epic 13.
 
-See [Epic 13 delivery](epic-13-risk.md). Do not start Epic 14 automatically.
+See [Epic 14 delivery](epic-14-asset-context.md). Do not start Epic 15 automatically.

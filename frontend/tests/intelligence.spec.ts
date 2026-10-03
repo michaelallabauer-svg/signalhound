@@ -1,3 +1,4 @@
+import { emptyContext } from './fixtures';
 import { test, expect, type Page } from '@playwright/test';
 const input = { key: 'observation:7:cpe', reference: 'cpe:2.3:a:apache:log4j:2.14.1:*:*:*:*:*:*:*', kind: 'CPE', service_id: 1, observation_id: 7, source: 'nmap', observed_at: '2026-10-03T10:00:00Z' };
 const snapshot = {
@@ -27,6 +28,7 @@ async function setup(page: Page, enabled = true, inputs = [input], runs: unknown
     }
     const data: Record<string, unknown> = {
       '/assets/1/risk': { algorithm_version: 'exposure-v1.0', snapshots: [] },
+      '/assets/1/context': emptyContext, '/assets/1/context/history': [],
       '/organizations': [{ id: 1, name: 'Intelligence test' }], '/assets': [asset],
       '/assets/1/detail': { ...asset, services: [], observations: [], service_observations: [], findings: [] },
     };

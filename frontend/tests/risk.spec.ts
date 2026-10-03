@@ -1,3 +1,4 @@
+import { emptyContext } from './fixtures';
 import { test, expect, type Page } from '@playwright/test';
 const snapshot = {
   id: 1, asset_id: 1, algorithm_version: 'exposure-v1.0', created_at: '2026-10-03T12:00:00Z',
@@ -32,6 +33,7 @@ async function setup(page: Page, empty = false) {
     }
     const asset={id:1,organization_id:1,value:'192.0.2.1',asset_type:'IP',active:true,source:'nmap',first_seen:'2026-10-03',last_seen:'2026-10-03'};
     const data:Record<string,unknown>={
+      '/assets/1/context': emptyContext, '/assets/1/context/history': [],
       '/organizations':[{id:1,name:'Risk test'}],'/assets':[asset],
       '/assets/1/detail':{...asset,services:[],observations:[],service_observations:[],findings:[]},
       '/assets/1/intelligence':{enabled:false,inputs:[],software:[],runs:[]}

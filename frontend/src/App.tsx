@@ -20,6 +20,7 @@ import {
   api,
   Asset,
   AssetDetail,
+  AssetBusinessContext,
   AssessmentFollowup,
   AssessmentRunDetail,
   AssessmentRun,
@@ -35,6 +36,7 @@ import {
 import signalHoundLogo from "./assets/signalhound-logo.png";
 
 import { Help, fieldHelp } from "./components/Help";
+import { BusinessContext } from "./components/BusinessContext";
 import { Risk } from "./components/Risk";
 import { Intelligence } from "./components/Intelligence";
 import { WebFingerprints } from "./components/WebFingerprints";
@@ -702,7 +704,7 @@ function InventoryTab({
             <div className="empty-inline">Loading asset details</div>
           )}
           {!detailError && selectedAsset && assetDetail?.id === selectedAsset.id && (
-            <AssetDetailPanel detail={assetDetail} scope={scopes.find((scope) => scope.id === assetDetail.scope_id) ?? null} />
+            <AssetDetailPanel key={assetDetail.id} detail={assetDetail} scope={scopes.find((scope) => scope.id === assetDetail.scope_id) ?? null} />
           )}
           {!selectedAsset && <div className="empty-inline">Select an asset</div>}
         </section>
@@ -725,6 +727,7 @@ function InventoryTab({
 }
 
 function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope | null }) {
+  const [businessContext, setBusinessContext] = useState<AssetBusinessContext | null>(null);
   const latestObservation = detail.observations.at(-1);
   const latestMetadata = latestObservation?.metadata ?? {};
   const statusReason = typeof latestMetadata.status_reason === "string" ? latestMetadata.status_reason : "-";
@@ -769,9 +772,10 @@ function AssetDetailPanel({ detail, scope }: { detail: AssetDetail; scope: Scope
           empty="No services observed"
         />
       </section>
+      <BusinessContext assetId={detail.id} organizationId={detail.organization_id} onChange={setBusinessContext} />
       <WebFingerprints detail={detail} />
       <Intelligence key={detail.id} assetId={detail.id} organizationId={detail.organization_id} />
-      <Risk key={`risk-${detail.id}`} assetId={detail.id} organizationId={detail.organization_id} />
+      <Risk key={`risk-${detail.id}`} assetId={detail.id} organizationId={detail.organization_id} savedContext={businessContext} />
       <section className="detail-section">
         <h3>Findings</h3>
         <SimpleTable
