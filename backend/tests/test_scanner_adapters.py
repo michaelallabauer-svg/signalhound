@@ -1,3 +1,5 @@
+import pytest
+
 from app.scanners.base import ScannerTarget
 from app.scanners.placeholders import AmassAdapter, NmapAdapter, NucleiAdapter, WebFingerprintAdapter
 
@@ -231,6 +233,12 @@ def test_nuclei_adapter_parses_findings() -> None:
             },
         }
     ]
+
+
+@pytest.mark.parametrize("value", ["192.168.0.0/24", "192.168.0.1/32", "fd00::/64", "http://example.com/path"])
+def test_nuclei_rejects_subnets_and_urls(value: str) -> None:
+    with pytest.raises(ValueError, match="single host"):
+        NucleiAdapter().prepare_job(ScannerTarget(value=value, scope_id=1, organization_id=1))
 
 
 def test_nuclei_adapter_prepares_bounded_web_profile() -> None:

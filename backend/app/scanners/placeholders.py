@@ -295,9 +295,17 @@ class NucleiAdapter(PlaceholderScannerAdapter):
     name = "nuclei"
     display_name = "ProjectDiscovery Nuclei"
     binary_name = "nuclei"
-    supported_target_notes = "External finding discovery adapter for a single scope-approved target."
+    supported_target_notes = "Limited web finding checks for one scope-approved host, not a subnet. Discover LAN hosts/services with Nmap first."
     execution_supported = True
     return_stderr_when_stdout_empty = True
+
+    def validate_target(self, target: ScannerTarget) -> None:
+        super().validate_target(target)
+        if "/" in target.value:
+            raise ValueError(
+                "Nuclei requires a single host, not a CIDR/subnet or URL. "
+                "Run Internal IT quick check (Nmap) first, then prepare web checks for discovered hosts."
+            )
 
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)

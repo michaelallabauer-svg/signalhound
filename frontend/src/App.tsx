@@ -1379,6 +1379,12 @@ function StatusPill({ status }: { status: ScannerJob["status"] | AssessmentRun["
 
 function summarizeJob(job: ScannerJob) {
   if (job.status === "COMPLETED") {
+    if (job.adapter_name === "nuclei") {
+      if (job.target.includes("/")) {
+        return "Invalid Nuclei target: this run did not assess the subnet. Run Internal IT quick check (Nmap) first.";
+      }
+      return `Limited web checks finished. ${formatNormalizedSummary(job)}. No matches do not prove reachability or absence of vulnerabilities; Nuclei is not host/service discovery.`;
+    }
     return `Completed successfully. ${formatNormalizedSummary(job)}`;
   }
   if (job.status === "PREPARED") {

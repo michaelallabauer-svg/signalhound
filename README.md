@@ -329,6 +329,7 @@ Epic 5 behavior:
 - Out-of-scope discovered assets may be recorded without `scope_id` as discovered/unverified inventory.
 - Services are attached to normalized assets and historized.
 - `nuclei` normalizes JSONL findings into the finding inventory.
+- Nuclei accepts a single bare host, not a CIDR/subnet. Start LAN discovery with `internal_it_quick` (Nmap); its current port set is `80,443,3000,5000,7000,8000,8080,8443,9000,9443`, not a full inventory scan. Nuclei runs five selected web templates; zero matches establish neither reachability nor absence of vulnerabilities. Historical CIDR Nuclei jobs are flagged in the UI as invalid subnet assessments without rewriting their stored results.
 
 ## Epic 11.6 LAN Web Fingerprinting
 

@@ -501,3 +501,19 @@ def test_nmap_cidr_run_deactivates_scope_assets_not_seen_again(
     assert stale_asset.active is False
     assert current_asset is not None
     assert current_asset.active is True
+
+
+def test_nuclei_cidr_rejected_without_creating_job(client: TestClient, db_session: Session) -> None:
+    org = client.post("/api/v1/organizations", json={"name": "CIDR regression"}).json()
+    scope = client.post("/api/v1/scopes", json={
+        "organization_id": org["id"], "name": "LAN", "target_type": "CIDR",
+        "target": "192.168.0.0/24", "scan_zone": "INTERNAL_IT",
+    })
+    assert scope.status_code == 201
+    response = client.post("/api/v1/scanner-jobs", json={
+        "organization_id": org["id"], "scope_id": scope.json()["id"],
+        "adapter_name": "nuclei", "target": "192.168.0.0/24",
+    })
+    assert response.status_code == 422
+    assert "Nmap" in response.json()["detail"]
+    assert list(db_session.scalars(select(ScannerJob))) == []

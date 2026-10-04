@@ -88,3 +88,18 @@ test('large inventories bound concurrent service requests', async ({ page }) => 
   await expect.poll(() => finished).toBe(48);
   expect(peak).toBeLessThanOrEqual(8);
 });
+
+
+test('Nuclei subnet history is not presented as a successful LAN assessment', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/v1/scanner-jobs?*', route => route.fulfill({ json: [
+    { id: 10, organization_id: 1, scope_id: 1, adapter_name: 'nuclei', target: '192.168.0.0/24',
+      status: 'COMPLETED', prepared_config: {}, normalized_result: { assets: [], services: [], findings: [] } },
+    { id: 11, organization_id: 1, scope_id: 1, adapter_name: 'nuclei', target: '192.168.0.1',
+      status: 'COMPLETED', prepared_config: {}, normalized_result: { assets: [], services: [], findings: [] } },
+  ] }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Scanners', exact: true }).click();
+  await expect(page.getByText('Invalid Nuclei target:', { exact: false })).toBeVisible();
+  await expect(page.getByText('No matches do not prove reachability', { exact: false })).toBeVisible();
+});
