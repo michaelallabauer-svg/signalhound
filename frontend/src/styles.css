@@ -845,3 +845,21 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 3px solid #39
 .segmentation-rules button[aria-pressed="true"] { outline: 2px solid #fcac45; }
 .segmentation .button-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
 .segmentation details { margin: 12px 0; }
+
+/* Scanner jobs: grouped, searchable history with selectable per-job output. */
+.scanner-workbench { grid-template-columns: minmax(0, 1fr); }
+.scanner-job-tabs { display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; }
+.scanner-job-tabs button { flex-shrink:0; }
+.scanner-job-tabs [aria-selected="true"] { background:#174d3b; color:white; }
+.scanner-job-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+.scanner-job-filters label { display:grid; gap:5px; flex:1 1 170px; }
+.scanner-job-filters input, .scanner-job-filters select { width:100%; min-width:0; }
+.scanner-table-scroll { overflow-x:auto; }
+.scanner-jobs-table { min-width:640px; }
+.scanner-jobs-table.compact th:first-child, .scanner-jobs-table.compact td:first-child { width:160px; overflow-wrap:anywhere; }
+.scanner-jobs-table.compact th:last-child, .scanner-jobs-table.compact td:last-child { width:100px; }
+.scanner-jobs-table time { font-size:11px; color:#4d5a55; }
+.selected-job-row { background:#e8f3ed; }
+.job-actions { display:grid; gap:6px; }
+.job-pagination { display:flex; gap:12px; align-items:center; justify-content:center; margin-top:12px; }
+.scanner-workbench > .panel { min-width:0; }

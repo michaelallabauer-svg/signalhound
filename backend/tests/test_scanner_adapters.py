@@ -331,3 +331,52 @@ def test_web_fingerprint_adapter_normalizes_service_observations() -> None:
             },
         }
     ]
+
+
+@pytest.mark.parametrize("target", ["192.168.0.0/24", "fd00::/64", "https://example.com"])
+def test_fingerprint_rejects_subnet_or_url(target: str) -> None:
+    with pytest.raises(ValueError, match="single host"):
+        WebFingerprintAdapter().prepare_job(ScannerTarget(value=target, scope_id=1, organization_id=1))
+
+
+def test_fingerprint_failed_attempts_do_not_become_services() -> None:
+    attempts = [
+        {"host": "192.168.0.1", "port": 80, "scheme": "http", "error": "Connection refused"},
+        {"host": "192.168.0.1", "port": 443, "scheme": "https", "error": "Name or service not known"},
+    ]
+    result = WebFingerprintAdapter().normalize_result({"target": "192.168.0.1", "results": attempts})
+    assert result.assets == result.services == []
+    assert result.metadata["endpoint_attempts"] == attempts
+
+
+def test_fingerprint_partial_collection_keeps_real_http_response() -> None:
+    result = WebFingerprintAdapter().normalize_result({"target": "192.168.0.1", "results": [
+        {"host": "192.168.0.1", "port": 443, "scheme": "https", "http_status": 403, "error": "Certificate collection failed"},
+        {"host": "192.168.0.1", "port": 80, "scheme": "http", "error": "Connection refused"},
+        {"host": "192.168.0.2", "port": 443, "scheme": "https", "http_status": 200},
+    ]})
+    assert len(result.services) == 1
+    assert result.services[0]["metadata"]["http_status"] == 403
+    assert len(result.metadata["endpoint_attempts"]) == 2
+
+
+def test_fingerprint_http_response_survives_body_error_and_closes_connection(monkeypatch) -> None:
+    from app.scanners.placeholders import _fingerprint_web_endpoint
+    from types import SimpleNamespace
+    closed = []
+    def fail_read(limit):
+        raise OSError("body read failed")
+    response = SimpleNamespace(status=401, getheaders=lambda: [], read=fail_read)
+    connection = SimpleNamespace(request=lambda *args, **kwargs: None, getresponse=lambda: response, close=lambda: closed.append(True))
+    monkeypatch.setattr("app.scanners.placeholders.http.client.HTTPConnection", lambda *args, **kwargs: connection)
+    result = _fingerprint_web_endpoint(host="example.com", scheme="http", port=80)
+    assert result["http_status"] == 401
+    assert result["error"] == "body read failed"
+    assert closed
+
+
+def test_followups_ignore_historical_failed_fingerprints() -> None:
+    from app.services.assessment_orchestration import _is_web_service
+    assert not _is_web_service({"port": 443, "source": "web_fingerprint", "metadata": {"error": "DNS failed"}})
+    assert _is_web_service({"port": 443, "source": "nmap"})
+    assert _is_web_service({"port": 443, "source": "web_fingerprint", "metadata": {"http_status": 403}})

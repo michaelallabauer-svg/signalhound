@@ -650,3 +650,23 @@ Select an authorized node in **Segmentation**, prepare a rule and explicitly que
 Results remain separate from queue state. A standalone Python 3.12+ zipapp needs no third-party
 client packages. [Build, registration, TLS setup and operation](docs/epic-16-nodes.md).
 `NODE_EXECUTION_ENABLED` defaults false. No node is automatically enrolled or scanning.
+
+### Scanner history and fingerprint evidence
+
+Scanner jobs have scanner-type tabs, combined target/job-ID search, status and
+assessment filters, newest-first pagination (20 rows), and per-job Details output.
+`COMPLETED` describes execution, not a clean security verdict. Fingerprint results
+separately report HTTP responses and collection errors.
+
+Web fingerprinting accepts a single host, never a CIDR or URL. Failed endpoint
+attempts remain in the job's raw output and `metadata.endpoint_attempts`; only
+endpoints returning an HTTP status create/update web services. A partial collection
+(e.g. certificate collection fails after HTTP 403) retains the response evidence.
+Failed fingerprint attempts do not deactivate services discovered by other tools.
+Historical subnet fingerprints are explicitly labelled invalid in the UI.
+
+For pre-fix data, `app.services.fingerprint_repair.retire_unconfirmed_fingerprints(db)`
+can retire fingerprint-only services supported solely by failed attempts and malformed
+subnet-host assets. It is idempotent, records audit events and preserves observations,
+job output, real host assets, independently observed services and assets with findings.
+The caller controls the transaction; inspect its returned IDs before committing.

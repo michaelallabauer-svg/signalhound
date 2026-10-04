@@ -103,3 +103,64 @@ test('Nuclei subnet history is not presented as a successful LAN assessment', as
   await expect(page.getByText('Invalid Nuclei target:', { exact: false })).toBeVisible();
   await expect(page.getByText('No matches do not prove reachability', { exact: false })).toBeVisible();
 });
+
+async function scannerHistory(page: Page) {
+  await fixture(page);
+  const jobs = Array.from({ length: 24 }, (_, i) => ({
+    id: i+1, organization_id: 1, scope_id: 1, assessment_run_id: i%2 ? 1 : null,
+    adapter_name: i%2 ? 'web_fingerprint' : 'nmap', target: `192.168.0.${i+1}`,
+    status: i%3 ? 'COMPLETED' : 'FAILED', requested_at: '2026-10-04T08:11:16Z',
+    prepared_config: {}, raw_output: `raw-job-${i+1}`, normalized_result: {
+      assets: [], services: [], findings: [], metadata: i%2 ? { endpoint_attempts: [{ error: 'DNS failed', port:443 }] } : {},
+    },
+  }));
+  await page.route('**/api/v1/scanner-jobs?*', route=>route.fulfill({ json:jobs }));
+  await page.reload();
+  await page.getByRole('button', { name:'Scanners', exact:true }).click();
+}
+
+test('scanner job tabs, combined filters, pagination and individual output', async ({page})=>{
+  await scannerHistory(page);
+  const table=page.locator('.scanner-jobs-table');
+  await expect(table.locator('tbody tr')).toHaveCount(20);
+  await expect(table.locator('tbody tr').first()).toContainText('#24');
+  await page.getByRole('button', {name:'Next',exact:true}).click();
+  await expect(table.locator('tbody tr')).toHaveCount(4);
+  await page.getByRole('tab', {name:'Web fingerprint (12)',exact:true}).click();
+  await expect(table.locator('tbody tr')).toHaveCount(12);
+  await page.getByLabel('Job status', {exact:true}).selectOption('COMPLETED');
+  await page.getByLabel('Search jobs').fill('192.168.0.24');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', {name:'View job 24',exact:true}).click();
+  await expect(page.locator('.run-output')).toContainText('Job: #24');
+  await expect(page.locator('.run-output')).toContainText('raw-job-24');
+  await expect(page.locator('.run-output')).toContainText('No web service confirmed');
+  await page.getByLabel('Assessment', {exact:true}).selectOption('standalone');
+  await expect(page.getByText('No matching jobs.', {exact:false})).toBeVisible();
+  await page.getByRole('button', {name:'Reset filters',exact:true}).click();
+  await expect(table.locator('tbody tr')).toHaveCount(20);
+  await page.getByRole('tab', {name:'All jobs (24)',exact:true}).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', {name:'Nmap (12)',exact:true})).toBeFocused();
+  await expect(table.locator('tbody tr')).toHaveCount(12);
+});
+
+test('scanner history fits narrow viewport with locally scrollable table', async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await scannerHistory(page);
+  await expect(page.getByLabel('Search jobs')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByLabel('Search jobs').fill('no-such-host');
+  await expect(page.getByText('No matching jobs.', {exact:false})).toBeVisible();
+});
+
+test('legacy subnet fingerprint explicitly disclaims open-port evidence', async ({page})=>{
+  await fixture(page, [observation(1, '2026-10-04T08:11:16Z', {url:'https://192.168.0.0/24',error:'Name or service not known'})]);
+  await page.route('**/api/v1/assets/1/detail', route=>route.fulfill({json:{
+    ...asset,value:'192.168.0.0/24',services:[service],observations:[],findings:[],
+    service_observations:[observation(1,'2026-10-04T08:11:16Z',{url:'https://192.168.0.0/24',error:'Name or service not known'})],
+  }}));
+  await page.getByRole('button',{name:'Inventory',exact:true}).click();
+  await expect(page.locator('.fingerprint-card')).toContainText('Unconfirmed attempt');
+  await expect(page.locator('.fingerprint-card')).toContainText('does not establish any open port in the LAN');
+});

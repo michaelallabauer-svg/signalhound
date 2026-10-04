@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -503,7 +504,8 @@ def test_nmap_cidr_run_deactivates_scope_assets_not_seen_again(
     assert current_asset.active is True
 
 
-def test_nuclei_cidr_rejected_without_creating_job(client: TestClient, db_session: Session) -> None:
+@pytest.mark.parametrize("adapter_name", ["nuclei", "web_fingerprint"])
+def test_web_adapters_cidr_rejected_without_creating_job(client: TestClient, db_session: Session, adapter_name: str) -> None:
     org = client.post("/api/v1/organizations", json={"name": "CIDR regression"}).json()
     scope = client.post("/api/v1/scopes", json={
         "organization_id": org["id"], "name": "LAN", "target_type": "CIDR",
@@ -512,8 +514,49 @@ def test_nuclei_cidr_rejected_without_creating_job(client: TestClient, db_sessio
     assert scope.status_code == 201
     response = client.post("/api/v1/scanner-jobs", json={
         "organization_id": org["id"], "scope_id": scope.json()["id"],
-        "adapter_name": "nuclei", "target": "192.168.0.0/24",
+        "adapter_name": adapter_name, "target": "192.168.0.0/24",
     })
     assert response.status_code == 422
     assert "Nmap" in response.json()["detail"]
     assert list(db_session.scalars(select(ScannerJob))) == []
+
+
+def test_fingerprint_failures_do_not_import_inventory(client: TestClient, db_session: Session, monkeypatch) -> None:
+    from app.scanners.placeholders import WebFingerprintAdapter
+    from app.services.scanner_execution import run_scanner_job
+    organization_id, scope_id = create_org_scope(client)
+    response = client.post("/api/v1/scanner-jobs", json={
+        "organization_id": organization_id, "scope_id": scope_id,
+        "adapter_name": "web_fingerprint", "target": "example.com",
+    })
+    assert response.status_code == 201
+    adapter = WebFingerprintAdapter()
+    monkeypatch.setattr(adapter, "execute", lambda prepared: '{"target":"example.com","results":[{"port":443,"scheme":"https","error":"DNS failed"}]}')
+    job = db_session.get(ScannerJob, response.json()["id"])
+    run_scanner_job(db_session, job=job, adapter=adapter, timeout_seconds=5)
+    assert list(db_session.scalars(select(Asset))) == []
+    assert list(db_session.scalars(select(Service))) == []
+    assert job.normalized_result["metadata"]["endpoint_attempts"][0]["error"] == "DNS failed"
+
+
+def test_fingerprint_repair_preserves_discovery_and_history(client: TestClient, db_session: Session) -> None:
+    from app.repositories.services import observe_service
+    from app.models.service import ServiceProtocol, ServiceObservation
+    from app.services.fingerprint_repair import retire_unconfirmed_fingerprints
+    organization_id, scope_id = create_org_scope(client)
+    artifact, _ = observe_asset(db_session, organization_id=organization_id, asset_type=AssetType.HOST,
+        value="192.168.0.0/24", source="web_fingerprint", scope_id=scope_id, known_asset=True, metadata={})
+    host, _ = observe_asset(db_session, organization_id=organization_id, asset_type=AssetType.HOST,
+        value="example.com", source="nmap", scope_id=scope_id, known_asset=True, metadata={})
+    bad, _ = observe_service(db_session, asset_id=artifact.id, protocol=ServiceProtocol.TCP, port=443,
+        name="https", source="web_fingerprint", metadata={"error":"DNS failed"})
+    good, _ = observe_service(db_session, asset_id=host.id, protocol=ServiceProtocol.TCP, port=443,
+        name="https", source="nmap", metadata={})
+    observe_service(db_session, asset_id=host.id, protocol=ServiceProtocol.TCP, port=443,
+        name="https", source="web_fingerprint", metadata={"error":"Connection refused"})
+    result = retire_unconfirmed_fingerprints(db_session)
+    assert result == {"services": [bad.id], "assets": [artifact.id]}
+    assert good.active and host.active
+    assert not bad.active and not artifact.active
+    assert len(list(db_session.scalars(select(ServiceObservation)))) == 3
+    assert retire_unconfirmed_fingerprints(db_session) == {"services": [], "assets": []}

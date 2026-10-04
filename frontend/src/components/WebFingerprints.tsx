@@ -29,9 +29,13 @@ export function WebFingerprints({ detail }: { detail: AssetDetail }) {
       const observation = latest.get(service.id)!;
       const metadata = observation.metadata;
       const value = (key: string) => typeof metadata[key] === "string" || typeof metadata[key] === "number" ? String(metadata[key]) : "Not available";
+      const invalidTarget = detail.value.includes("/");
+      const hasResponse = typeof metadata.http_status === "number" && metadata.http_status >= 100 && metadata.http_status <= 599;
       return <article className="fingerprint-card" key={service.id}>
-        <h4>{service.name ?? "Web service"} · {service.protocol}/{service.port}{!service.active && " · Inactive service"}</h4>
+        <h4>{invalidTarget || !hasResponse ? "Unconfirmed attempt · " : "HTTP response observed · "}{service.name ?? "Web service"} · {service.protocol}/{service.port}{!service.active && " · Inactive service"}</h4>
         <p className="guidance">Observed {new Date(observation.observed_at).toLocaleString()} · Source: web fingerprint</p>
+        {invalidTarget && <div className="notice error">Invalid historical target: a subnet is not a host. This entry does not establish any open port in the LAN.</div>}
+        {!invalidTarget && !hasResponse && <div className="notice error">This fingerprint did not record an HTTP response. The attempted port is not a confirmed web service; other discovery evidence may exist.</div>}
         <p className="fingerprint-url">{value("url")}</p>
         {metadata.error && typeof metadata.error === "string" ? <div className="notice error">Collection incomplete: {metadata.error}. Check reachability and run a new fingerprint job to retry.</div> : null}
         <dl className="detail-list">{fields.map(([key, label, help]) => <div key={key}>

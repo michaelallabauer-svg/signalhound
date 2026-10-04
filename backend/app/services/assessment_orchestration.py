@@ -297,7 +297,7 @@ def _web_targets_from_assessment_jobs(db: Session, *, run: AssessmentRun) -> lis
             if not isinstance(service, dict) or not _is_web_service(service):
                 continue
             target = str(service.get("asset_value", "")).strip().lower().rstrip(".")
-            if not target:
+            if not target or "/" in target:
                 continue
             validation = ScopeValidator().validate(
                 db,
@@ -329,7 +329,7 @@ def _web_endpoints_from_assessment_jobs(db: Session, *, run: AssessmentRun) -> d
             if not isinstance(service, dict) or not _is_web_service(service):
                 continue
             target = str(service.get("asset_value", "")).strip().lower().rstrip(".")
-            if not target:
+            if not target or "/" in target:
                 continue
             validation = ScopeValidator().validate(
                 db,
@@ -349,6 +349,11 @@ def _web_endpoints_from_assessment_jobs(db: Session, *, run: AssessmentRun) -> d
 
 
 def _is_web_service(service: dict[str, Any]) -> bool:
+    metadata = service.get("metadata") or {}
+    if service.get("source") == "web_fingerprint":
+        status = metadata.get("http_status")
+        if type(status) is not int or not 100 <= status <= 599:
+            return False
     try:
         port = int(service.get("port", 0))
     except (TypeError, ValueError):

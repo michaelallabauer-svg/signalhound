@@ -409,6 +409,11 @@ class WebFingerprintAdapter(PlaceholderScannerAdapter):
     supported_target_notes = "Conservative HTTP(S) metadata collection for a single scope-approved web host."
     execution_supported = True
 
+    def validate_target(self, target: ScannerTarget) -> None:
+        super().validate_target(target)
+        if "/" in target.value:
+            raise ValueError("Web fingerprint requires a single host, not a CIDR/subnet or URL. Run Nmap discovery first.")
+
     def prepare_job(self, target: ScannerTarget) -> PreparedScannerJob:
         self.validate_target(target)
         command = ["web_fingerprint", target.value]
@@ -434,6 +439,7 @@ class WebFingerprintAdapter(PlaceholderScannerAdapter):
 
     def execute(self, prepared_job: PreparedScannerJob) -> str:
         target = str(prepared_job.target).strip().lower().rstrip(".")
+        self.validate_target(ScannerTarget(value=target, scope_id=0, organization_id=0))
         endpoints = prepared_job.config.get("endpoints", [])
         if not isinstance(endpoints, list):
             endpoints = []
@@ -464,7 +470,9 @@ class WebFingerprintAdapter(PlaceholderScannerAdapter):
 
     def normalize_result(self, parsed_result: Any) -> NormalizedScannerResult:
         target = str(parsed_result.get("target", "")).strip().lower().rstrip(".")
+        self.validate_target(ScannerTarget(value=target, scope_id=0, organization_id=0))
         services: list[dict[str, Any]] = []
+        attempts: list[dict[str, Any]] = []
         for result in parsed_result.get("results", []):
             if not isinstance(result, dict):
                 continue
@@ -473,6 +481,14 @@ class WebFingerprintAdapter(PlaceholderScannerAdapter):
             except (TypeError, ValueError):
                 continue
             scheme = str(result.get("scheme", "http")).lower()
+            if scheme not in {"http", "https"} or not 1 <= port <= 65535:
+                continue
+            if str(result.get("host", target)).strip().lower().rstrip(".") != target:
+                continue
+            attempts.append(result)
+            status = result.get("http_status")
+            if type(status) is not int or not 100 <= status <= 599:
+                continue
             service_name = "https" if scheme == "https" else "http"
             services.append(
                 {
@@ -496,12 +512,13 @@ class WebFingerprintAdapter(PlaceholderScannerAdapter):
                     },
                 }
             )
-        return NormalizedScannerResult(services=services, metadata={"adapter": self.name})
+        return NormalizedScannerResult(services=services, metadata={"adapter": self.name, "endpoint_attempts": attempts})
 
 
 def _fingerprint_web_endpoint(*, host: str, scheme: str, port: int) -> dict[str, Any]:
     url = f"{scheme}://{host}" if port in {80, 443} else f"{scheme}://{host}:{port}"
     result: dict[str, Any] = {"url": url, "host": host, "scheme": scheme, "port": port}
+    connection = None
     try:
         if scheme == "https":
             connection = http.client.HTTPSConnection(
@@ -514,7 +531,6 @@ def _fingerprint_web_endpoint(*, host: str, scheme: str, port: int) -> dict[str,
             connection = http.client.HTTPConnection(host, port=port, timeout=4)
         connection.request("GET", "/", headers={"User-Agent": "SignalHound-WebFingerprint/1.0"})
         response = connection.getresponse()
-        body = response.read(65536)
         headers = {key.lower(): value for key, value in response.getheaders()}
         result.update(
             {
@@ -522,14 +538,18 @@ def _fingerprint_web_endpoint(*, host: str, scheme: str, port: int) -> dict[str,
                 "server": headers.get("server"),
                 "content_type": headers.get("content-type"),
                 "redirect_location": headers.get("location"),
-                "title": _extract_html_title(body, headers.get("content-type")),
             }
         )
+        body = response.read(65536)
+        result["title"] = _extract_html_title(body, headers.get("content-type"))
         connection.close()
         if scheme == "https":
             result.update(_read_tls_certificate(host=host, port=port))
     except (OSError, http.client.HTTPException, ssl.SSLError, socket.timeout) as exc:
         result["error"] = str(exc)
+    finally:
+        if connection is not None:
+            connection.close()
     return result
 
 

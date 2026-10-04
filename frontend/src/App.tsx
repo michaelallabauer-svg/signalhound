@@ -1,3 +1,4 @@
+import { ScannerJobs } from "./components/ScannerJobs";
 import * as React from "react";
 import {
   Activity,
@@ -942,6 +943,7 @@ function ScannersTab({
   const [followupError, setFollowupError] = useState<string | null>(null);
   const [followupNotice, setFollowupNotice] = useState<string | null>(null);
   const [runningJobId, setRunningJobId] = useState<number | null>(null);
+  const [selectedOutputJobId, setSelectedOutputJobId] = useState<number | null>(null);
   const [runOutput, setRunOutput] = useState<string>("No scanner run selected.");
   const activeScopes = useMemo(() => scopes.filter((scope) => scope.active), [scopes]);
   const selectedAssessmentScope =
@@ -1003,7 +1005,20 @@ function ScannersTab({
     };
   }, [selectedAssessmentId, assessmentRuns, jobs]);
 
+  useEffect(() => {
+    setSelectedOutputJobId(null);
+    setRunOutput("No scanner run selected.");
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (selectedOutputJobId !== null) {
+      const selected = jobs.find(job => job.id === selectedOutputJobId);
+      setRunOutput(selected ? formatStoredJobOutput(selected) : "Selected job is no longer available.");
+    }
+  }, [jobs, selectedOutputJobId]);
+
   async function handleRun(jobId: number) {
+    setSelectedOutputJobId(null);
     const job = jobs.find((candidate) => candidate.id === jobId);
     setRunningJobId(jobId);
     onRunStateChange({
@@ -1024,6 +1039,7 @@ function ScannersTab({
   }
 
   async function handlePrepareVulnerabilityChecks(assessmentRunId: number) {
+    setSelectedOutputJobId(null);
     setFollowupBusy(true);
     setFollowupError(null);
     setFollowupNotice(null);
@@ -1041,6 +1057,7 @@ function ScannersTab({
   }
 
   async function handlePrepareWebFingerprints(assessmentRunId: number) {
+    setSelectedOutputJobId(null);
     setFollowupBusy(true);
     setFollowupError(null);
     setFollowupNotice(null);
@@ -1284,7 +1301,7 @@ function ScannersTab({
                 <button
                   className="assessment-job-button"
                   key={job.id}
-                  onClick={() => setRunOutput(formatStoredJobOutput(job))}
+                  onClick={() => {setSelectedOutputJobId(job.id); setRunOutput(formatStoredJobOutput(job));}}
                   type="button"
                 >
                   <span>{job.adapter_name}</span>
@@ -1299,50 +1316,9 @@ function ScannersTab({
       <div className="scanner-workbench">
         <section className="panel">
           <PanelHeader title="Scanner jobs" />
-          <table className="scanner-jobs-table compact">
-            <thead>
-              <tr>
-                <th>Adapter</th>
-                <th>Target</th>
-                <th>Status</th>
-                <th>Run</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => {
-                const canRun = job.status === "PREPARED" && runningJobId === null;
-                return (
-                  <tr className={job.status === "FAILED" ? "failed-row" : undefined} key={job.id}>
-                    <td>{job.adapter_name}</td>
-                    <td>
-                      <div className="job-target">{job.target}</div>
-                      <div className="job-detail">
-                        {runningJobId === job.id
-                          ? "Scanner is running. Results will refresh when it finishes."
-                          : formatJobDetail(job)}
-                      </div>
-                    </td>
-                    <td>
-                      <StatusPill status={runningJobId === job.id ? "RUNNING" : job.status} />
-                    </td>
-                    <td>
-                      <button
-                        className="run-button"
-                        disabled={!canRun}
-                        onClick={() => void handleRun(job.id)}
-                        title={job.status === "PREPARED" ? "Run scanner job" : "Only prepared jobs can be run"}
-                        type="button"
-                      >
-                        <Play size={16} />
-                        {runningJobId === job.id || job.status === "RUNNING" ? "Running" : job.status === "PREPARED" ? "Run" : job.status === "COMPLETED" ? "Done" : job.status === "FAILED" ? "Failed" : "Cancelled"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {jobs.length === 0 && <div className="empty-inline">No scanner jobs</div>}
+          <ScannerJobs key={organizationId} jobs={jobs} runningJobId={runningJobId}
+            onRun={id => void handleRun(id)} onSelect={job => {setSelectedOutputJobId(job.id); setRunOutput(formatStoredJobOutput(job));}}
+            describe={formatJobDetail} />
         </section>
         <section className="panel run-output-panel">
           <PanelHeader title="Run output" />
@@ -1379,6 +1355,17 @@ function StatusPill({ status }: { status: ScannerJob["status"] | AssessmentRun["
 
 function summarizeJob(job: ScannerJob) {
   if (job.status === "COMPLETED") {
+    if (job.adapter_name === "web_fingerprint") {
+      if (job.target.includes("/")) return "Invalid fingerprint target: a subnet is not a host. No open port is established by this run.";
+      const metadata = job.normalized_result?.metadata as { endpoint_attempts?: { http_status?: number; error?: string }[] } | undefined;
+      const attempts = metadata?.endpoint_attempts;
+      if (attempts) {
+        const confirmed = attempts.filter(attempt => typeof attempt.http_status === "number" && attempt.http_status >= 100 && attempt.http_status <= 599).length;
+        const errors = attempts.filter(attempt => attempt.error).length;
+        return `Web collection: ${confirmed}/${attempts.length} endpoints returned HTTP responses; ${errors} collection errors. ${confirmed === 0 ? "No web service confirmed." : formatNormalizedSummary(job)}`;
+      }
+      return `Historical web collection. ${formatNormalizedSummary(job)}. Check endpoint evidence: connection errors do not confirm open ports.`;
+    }
     if (job.adapter_name === "nuclei") {
       if (job.target.includes("/")) {
         return "Invalid Nuclei target: this run did not assess the subnet. Run Internal IT quick check (Nmap) first.";
@@ -1423,8 +1410,8 @@ function formatRunOutput(job: ScannerJob, startedAt: Date, success: boolean) {
     `  Status: ${job.status}`,
     `  Duration observed in UI: ${durationSeconds}s`,
     "",
-    "IMPORT RESULT",
-    `  ${formatNormalizedSummary(job)}`,
+    "RESULT",
+    `  ${formatJobDetail(job)}`,
     "",
     "COMMAND",
     `  ${command}`,
@@ -1447,8 +1434,8 @@ function formatStoredJobOutput(job: ScannerJob) {
     `  Target: ${job.target}`,
     `  Status: ${job.status}`,
     "",
-    "IMPORT RESULT",
-    `  ${formatNormalizedSummary(job)}`,
+    "RESULT",
+    `  ${formatJobDetail(job)}`,
     "",
     "COMMAND",
     `  ${command}`,
